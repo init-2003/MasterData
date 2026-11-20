@@ -1,0 +1,11 @@
+/.env
+/.tools/
+/.pnpm-store/
+/backend/vendor/
+/frontend/node_modules/
+/public/assets/
+/public/index.html
+/var/
+/storage/product-images/
+/storage/image-path-backups/
+/.phpunit.cache/

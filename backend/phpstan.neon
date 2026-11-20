@@ -1,0 +1,7 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - bin
+        - ../public/api.php
+    tmpDir: ../var/phpstan

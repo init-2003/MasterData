@@ -1,0 +1,19 @@
+# Add to Apache's server configuration and enable it with Include.
+# This blocks other URLs through the default XAMPP htdocs virtual host.
+<Directory "C:/xampp/htdocs/SPTC.,Ltd">
+    AllowOverride None
+    Require all denied
+</Directory>
+
+Alias "/sptc-master/" "C:/xampp/htdocs/SPTC.,Ltd/public/"
+<Directory "C:/xampp/htdocs/SPTC.,Ltd/public">
+    AllowOverride None
+    Options -Indexes
+    DirectoryIndex index.html
+    Require all granted
+
+    <IfModule mod_headers.c>
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set X-Frame-Options "DENY"
+    </IfModule>
+</Directory>

@@ -1,0 +1,31 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    environment:
+      APP_MODE: ${SPTC_DOCKER_MODE:-demo}
+      APP_HTTPS: "0"
+    ports:
+      - "127.0.0.1:8094:8094"
+    volumes:
+      - .:/app
+      - backend_vendor:/app/backend/vendor
+      - app_runtime:/app/var
+    command: sh -c "composer --working-dir=backend install --no-interaction && php -S 0.0.0.0:8094 -t public deploy/router.php"
+
+  frontend:
+    image: node:24-bookworm-slim
+    working_dir: /app/frontend
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - .:/app
+      - frontend_modules:/app/frontend/node_modules
+    command: sh -c "corepack enable && corepack prepare pnpm@11 --activate && pnpm install --frozen-lockfile && pnpm exec vite build --watch"
+
+volumes:
+  backend_vendor:
+  frontend_modules:
+  app_runtime:

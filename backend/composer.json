@@ -1,0 +1,25 @@
+{
+  "name": "sptc/master-data",
+  "type": "project",
+  "require": {
+    "php": "~8.5.0",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "monolog/monolog": "^3.0",
+    "symfony/cache": "7.4.*",
+    "symfony/lock": "7.4.*",
+    "symfony/rate-limiter": "7.4.*",
+    "symfony/validator": "7.4.*",
+    "vlucas/phpdotenv": "^5.6"
+  },
+  "require-dev": {
+    "pestphp/pest": "^5.0",
+    "phpstan/phpstan": "^2.1"
+  },
+  "autoload": {"psr-4": {"Sptc\\MasterData\\": "src/"}},
+  "config": {"allow-plugins": {"pestphp/pest-plugin": true}, "sort-packages": true},
+  "scripts": {
+    "test": "pest",
+    "analyse": "phpstan analyse --no-progress"
+  }
+}
