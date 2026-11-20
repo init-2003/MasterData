@@ -1,7 +1,27 @@
-import React from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, PackageOpen, PackageSearch, Search, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Grid2X2, ImageOff, List, PackageOpen, PackageSearch, Search, X } from 'lucide-react';
+
+function ProductThumbnail({ id, version, large = false }) {
+  const [failed, setFailed] = useState(false);
+  const url = `./api.php?${new URLSearchParams({ action: 'product-image', id, slot: '1', v: String(version) })}`;
+  return <span className={`catalog-thumbnail${large ? ' catalog-thumbnail-large' : ''}`} aria-hidden="true">{failed ? <ImageOff /> : <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />}</span>;
+}
 
 export function ProductPage({ app }) {
+  const [showImages, setShowImages] = useState(() => {
+    try { return sessionStorage.getItem('sptc.show-product-images') === 'true'; } catch { return false; }
+  });
+  const [view, setView] = useState(() => {
+    try { return sessionStorage.getItem('sptc.product-view') === 'grid' ? 'grid' : 'table'; } catch { return 'table'; }
+  });
+  const changeView = (value) => {
+    setView(value);
+    try { sessionStorage.setItem('sptc.product-view', value); } catch { /* Continue without saving the preference. */ }
+  };
+  const toggleImages = (checked) => {
+    setShowImages(checked);
+    try { sessionStorage.setItem('sptc.show-product-images', String(checked)); } catch { /* Continue without saving the preference. */ }
+  };
   return <main className="container-xl catalog-main" aria-labelledby="catalog-heading" inert={app.backgroundInert || undefined}>
     <section className="catalog-banner"><div className="catalog-orbit" aria-hidden="true" /><div className="catalog-square" aria-hidden="true" /><div className="catalog-heading"><span className="banner-icon" aria-hidden="true"><PackageOpen /></span><div><h1 id="catalog-heading" tabIndex={-1}>รายการสินค้า</h1><p>ข้อมูลหลักสินค้าจากฐานข้อมูล</p></div></div>{app.demo && <div className="dataset"><span /> ข้อมูลตัวอย่าง</div>}</section>
     <section className="catalog-panel" aria-label="ค้นหาและดูรายการสินค้า">
@@ -12,9 +32,10 @@ export function ProductPage({ app }) {
       </form><p className="product-count" aria-live="polite">{app.resultCount}</p></div>
       <div id="type-status" className="type-status" aria-live="polite">{app.typesError && <span>โหลดประเภทสินค้าไม่ได้ <button type="button" onClick={() => app.loadTypes()}>ลองอีกครั้ง</button></span>}</div>
       <div id="unit-status" className="type-status" aria-live="polite">{app.unitsError && <span>โหลดหน่วยสินค้าไม่ได้ <button type="button" onClick={() => app.loadUnits()}>ลองอีกครั้ง</button></span>}</div>
-      <div className="table-scroll" aria-busy={app.productsBusy}><table className="product-table"><thead><tr><th scope="col">รหัสสินค้า</th><th scope="col">ชื่อสินค้า</th><th scope="col">ประเภท</th><th scope="col">หน่วย</th><th scope="col" className="price-cell">ราคาขาย</th><th scope="col"><span className="sr-only">รายละเอียด</span></th></tr></thead><tbody>
-        {app.items.map((item) => <tr key={item.id}><td className="code-cell">{app.display(item.code)}</td><td><span className="product-name">{app.display(item.name)}</span><span className="mobile-code">{app.display(item.code)}</span></td><td className="category-cell">{app.display(item.category)}</td><td className="unit-cell">{app.display(item.unit)}</td><td className="price-cell">{app.price(item.price)}</td><td className="detail-cell"><button className="detail-button" type="button" data-product-id={item.id} onClick={() => app.openProduct(item)} aria-label={app.detailLabel(item)}>ดู<span>รายละเอียด</span><span aria-hidden="true"> ↗</span></button></td></tr>)}
-      </tbody></table></div>
+      <div className="catalog-view-options">{view === 'table' && <label className="catalog-image-toggle"><input type="checkbox" checked={showImages} onChange={(event) => toggleImages(event.target.checked)} /> แสดงรูปสินค้า</label>}<div className="catalog-view-switch" role="group" aria-label="มุมมองรายการสินค้า"><button type="button" aria-pressed={view === 'table'} onClick={() => changeView('table')}><List aria-hidden="true" /> Table</button><button type="button" aria-pressed={view === 'grid'} onClick={() => changeView('grid')}><Grid2X2 aria-hidden="true" /> Grid</button></div></div>
+      {view === 'table' ? <div className="table-scroll" aria-busy={app.productsBusy}><table className="product-table"><thead><tr><th scope="col">รหัสสินค้า</th><th scope="col">ชื่อสินค้า</th><th scope="col">ประเภท</th><th scope="col">หน่วย</th><th scope="col" className="price-cell">ราคาขาย</th><th scope="col"><span className="sr-only">รายละเอียด</span></th></tr></thead><tbody>
+        {app.items.map((item) => <tr key={item.id}><td className="code-cell">{app.display(item.code)}</td><td><div className="catalog-product">{showImages && <ProductThumbnail key={`${item.id}-${app.catalogImageVersion}`} id={item.id} version={app.catalogImageVersion} />}<div className="catalog-product-text"><span className="product-name">{app.display(item.name)}</span><span className="mobile-code">{app.display(item.code)}</span></div></div></td><td className="category-cell">{app.display(item.category)}</td><td className="unit-cell">{app.display(item.unit)}</td><td className="price-cell">{app.price(item.price)}</td><td className="detail-cell"><button className="detail-button" type="button" data-product-id={item.id} onClick={() => app.openProduct(item)} aria-label={app.detailLabel(item)}>ดู<span>รายละเอียด</span><span aria-hidden="true"> ↗</span></button></td></tr>)}
+      </tbody></table></div> : <ul className="product-grid" aria-label="รายการสินค้า" aria-busy={app.productsBusy}>{app.items.map((item) => <li className="product-card" key={item.id}><ProductThumbnail key={`${item.id}-${app.catalogImageVersion}`} id={item.id} version={app.catalogImageVersion} large /><div className="product-card-body"><span className="product-card-code">{app.display(item.code)}</span><h3 className="product-card-name">{app.display(item.name)}</h3><div className="product-card-footer"><span className="product-card-price">{app.price(item.price)}</span><button className="detail-button" type="button" data-product-id={item.id} onClick={() => app.openProduct(item)} aria-label={app.detailLabel(item)}>ดูรายละเอียด <span aria-hidden="true">↗</span></button></div></div></li>)}</ul>}
       {app.productsBusy && <div className="catalog-state" role="status">กำลังโหลดสินค้า…</div>}
       {app.showEmpty && <div className="catalog-state" role="status"><PackageSearch aria-hidden="true" /><strong>ไม่พบสินค้า</strong><span>ลองเปลี่ยนคำค้นหา ประเภท หรือหน่วยสินค้า</span></div>}
       {app.catalogError && <div className="catalog-state error-state" role="alert"><CircleAlert aria-hidden="true" /><strong>{app.catalogError}</strong><button className="button button-muted retry-button" type="button" onClick={() => app.refresh()}>ลองอีกครั้ง</button></div>}

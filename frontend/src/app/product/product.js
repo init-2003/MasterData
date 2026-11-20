@@ -23,6 +23,8 @@ export function createProduct() {
   const draftKey = (user, id, slot) => JSON.stringify([draftToken, user, id, slot]);
   const queueDraft = (operation, onFailure = () => {}) => { draftWrites = draftWrites.catch(() => {}).then(operation).catch(onFailure); };
   const detailStorageKey = 'sptc.open-product';
+  const editStorageKey = 'sptc.product-edit';
+  const clearSavedEdit = () => { try { sessionStorage.removeItem(editStorageKey); } catch { /* Storage may be unavailable. */ } };
   const clearSavedDetail = () => { try { sessionStorage.removeItem(detailStorageKey); } catch { /* Storage may be unavailable. */ } };
 
   return {
@@ -57,6 +59,7 @@ export function createProduct() {
     imageDraftError: '',
     imageDraftSaving: 0,
     imageToast: '',
+    catalogImageVersion: Date.now(),
     catalogError: '',
     productsBusy: false,
     items: [],
@@ -94,6 +97,7 @@ export function createProduct() {
       this.imageToast = '';
       this.imageSlots.forEach((image) => this.cancelImage(image));
       clearSavedDetail();
+      clearSavedEdit();
       pendingProducts?.abort();
       pendingTypes?.abort();
       pendingUnits?.abort();
@@ -223,7 +227,7 @@ export function createProduct() {
         do {
           data = await request('products', { query: { q: saved.code, page } });
           const item = data.items.find((candidate) => candidate.id === saved.id);
-          if (item && this.user?.username === saved.username) { await this.openProduct(item); await this.restoreImageDrafts(); return; }
+          if (item && this.user?.username === saved.username) { await this.openProduct(item); this.restoreDetailEdit(); await this.restoreImageDrafts(); return; }
           page++;
         } while (page <= data.totalPages);
         clearSavedDetail();
@@ -241,6 +245,7 @@ export function createProduct() {
       }
       this.detailOpen = false;
       clearSavedDetail();
+      clearSavedEdit();
       imageRequest?.abort();
       noteRequest?.abort();
       shortNoteRequest?.abort();
@@ -271,6 +276,38 @@ export function createProduct() {
       this.editingNote = true;
       this.editingShortNote = true;
       this.editingDetail = true;
+      this.persistDetailEdit();
+    },
+    persistDetailEdit() {
+      if (!this.editingDetail || !this.detailOpen || !this.user?.username) return;
+      try {
+        sessionStorage.setItem(editStorageKey, JSON.stringify({
+          id: this.selectedProduct.id, username: this.user.username,
+          priceInput: this.priceInput, originalPriceInput: this.originalPriceInput, expectedPrice: this.selectedProduct.price,
+          noteInput: this.noteInput, expectedNote: this.note,
+          shortNoteInput: this.shortNoteInput, expectedShortNote: this.shortNote,
+          deletedImages: this.imageSlots.filter((image) => image.deletePending).map((image) => ({ slot: image.slot, expected: image.expectedDeletePath ?? image.path ?? null })),
+        }));
+      } catch { this.detailSaveError = 'เก็บข้อมูลแก้ไขชั่วคราวไม่ได้ ข้อมูลอาจหายเมื่อรีเฟรช'; }
+    },
+    restoreDetailEdit() {
+      let saved;
+      try { saved = JSON.parse(sessionStorage.getItem(editStorageKey) || 'null'); } catch { return; }
+      if (!saved || saved.id !== this.selectedProduct.id || saved.username !== this.user?.username) return;
+      if (this.noteError || this.shortNoteError || this.imagesError) return;
+      this.startDetailEdit();
+      this.priceInput = saved.priceInput;
+      this.originalPriceInput = saved.originalPriceInput;
+      if (saved.priceInput !== saved.originalPriceInput) this.selectedProduct = { ...this.selectedProduct, price: saved.expectedPrice };
+      this.noteInput = saved.noteInput;
+      if (saved.noteInput !== (saved.expectedNote ?? '')) this.note = saved.expectedNote;
+      this.shortNoteInput = saved.shortNoteInput;
+      if (saved.shortNoteInput !== (saved.expectedShortNote ?? '')) this.shortNote = saved.expectedShortNote;
+      for (const deleted of saved.deletedImages ?? []) {
+        const image = this.imageSlots.find((item) => item.slot === deleted.slot);
+        if (image) { image.deletePending = true; image.expectedDeletePath = deleted.expected; }
+      }
+      this.persistDetailEdit();
     },
     async cancelDetailEdit() {
       if (this.savingDetail) return;
@@ -291,6 +328,7 @@ export function createProduct() {
       this.editingNote = false;
       this.editingShortNote = false;
       this.editingDetail = false;
+      clearSavedEdit();
     },
     async saveDetail() {
       if (this.savingDetail) return;
@@ -314,8 +352,9 @@ export function createProduct() {
         }
         for (const image of this.imageSlots.filter((item) => item.deletePending)) {
           try {
-            await request('delete-product-image', { body: { id: this.selectedProduct.id, slot: image.slot, expected: image.path ?? null }, csrf: this.csrf });
+            await request('delete-product-image', { body: { id: this.selectedProduct.id, slot: image.slot, expected: image.expectedDeletePath ?? image.path ?? null }, csrf: this.csrf });
             image.path = null; image.url = ''; image.missing = true; image.deletePending = false; image.error = '';
+            if (image.slot === 1) this.catalogImageVersion++;
             successes.push(`รูปที่ ${image.slot}`);
           } catch (error) {
             image.error = error.status === 409 ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง' : 'ลบรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
@@ -326,9 +365,10 @@ export function createProduct() {
           this.detailSaveError = `${successes.length ? `บันทึก ${successes.join(', ')} แล้ว ` : ''}บันทึก ${failures.join(', ')} ไม่สำเร็จ กรุณาตรวจสอบและลองอีกครั้ง`;
         } else {
           this.editingPrice = false; this.editingNote = false; this.editingShortNote = false; this.editingDetail = false;
+          clearSavedEdit();
           if (successes.length) this.showImageToast('บันทึกข้อมูลสินค้าแล้ว');
         }
-      } finally { this.savingDetail = false; }
+      } finally { this.savingDetail = false; if (this.editingDetail) this.persistDetailEdit(); }
     },
     async loadNote() {
       noteRequest?.abort();
@@ -435,6 +475,8 @@ export function createProduct() {
     selectImageFile(file, image, input = null, restoredExpected) {
       if (this.imageBusy) return;
       image.deletePending = false;
+      image.expectedDeletePath = undefined;
+      this.persistDetailEdit();
       if (restoredExpected === undefined && draftToken && this.user?.username && this.selectedProduct.id) {
         const oldKey = draftKey(this.user.username, this.selectedProduct.id, image.slot);
         this.imageDraftSaving++;
@@ -499,8 +541,9 @@ export function createProduct() {
     stageImageDelete(image) {
       if (!this.editingDetail || this.savingDetail) return;
       if (image.pending) this.cancelImage(image);
-      if (image.path || !image.missing) image.deletePending = true;
+      if (image.path || !image.missing) { image.deletePending = true; image.expectedDeletePath = image.path ?? null; }
       image.error = '';
+      this.persistDetailEdit();
     },
     async deleteImage(image) {
       if (this.imageBusy || (!image.path && image.missing)) return;
@@ -517,6 +560,7 @@ export function createProduct() {
         image.url = '';
         image.preview = '';
         image.missing = true;
+        if (image.slot === 1) this.catalogImageVersion++;
         this.showImageToast('ลบรูปสินค้าแล้ว');
       } catch (error) {
         image.error = error.status === 409 ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง' : 'ลบรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
@@ -544,6 +588,7 @@ export function createProduct() {
             image.path = result.path;
             image.url = `./api.php?${new URLSearchParams({ action: 'product-image', id: this.selectedProduct.id, slot: image.slot, v: Date.now().toString() })}`;
             image.missing = false;
+            if (image.slot === 1) this.catalogImageVersion++;
             succeeded.push(image.slot);
           } catch (error) {
             image.error = error.status === 409 ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง' : error.status === 413 || error.status === 422 ? 'รูปหรือรหัสสินค้าไม่ถูกต้อง หรือรูปมีขนาดเกิน 5 MB' : 'อัปโหลดรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';

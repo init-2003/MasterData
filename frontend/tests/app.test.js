@@ -11,6 +11,33 @@ vi.mock('../src/app/product/image-drafts.js', () => ({ imageDrafts: {
 } }));
 afterEach(() => vi.unstubAllGlobals());
 
+it('restores edit fields and staged image deletion with their original conflict values', async () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
+  const storage = new Map();
+  vi.stubGlobal('sessionStorage', { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) });
+  const first = createMasterData();
+  first.user = { username: 'demo' };
+  first.detailOpen = true;
+  first.selectedProduct = { id: 'P1', price: '12.00' };
+  first.note = 'เดิม'; first.shortNote = 'ย่อเดิม';
+  first.imageSlots = [{ slot: 1, path: 'P1/old.png', missing: false }];
+  first.startDetailEdit();
+  first.priceInput = '15.00'; first.noteInput = 'ใหม่'; first.shortNoteInput = 'ย่อใหม่';
+  first.stageImageDelete(first.imageSlots[0]);
+
+  const restored = createMasterData();
+  restored.user = { username: 'demo' };
+  restored.detailOpen = true;
+  restored.selectedProduct = { id: 'P1', price: '13.00' };
+  restored.note = 'เปลี่ยนจากที่อื่น'; restored.shortNote = 'เปลี่ยนจากที่อื่น';
+  restored.imageSlots = [{ slot: 1, path: 'P1/new.png', missing: false }];
+  restored.restoreDetailEdit();
+  expect(restored.editingDetail).toBe(true);
+  expect([restored.priceInput, restored.noteInput, restored.shortNoteInput]).toEqual(['15.00', 'ใหม่', 'ย่อใหม่']);
+  expect([restored.selectedProduct.price, restored.note, restored.shortNote]).toEqual(['12.00', 'เดิม', 'ย่อเดิม']);
+  expect(restored.imageSlots[0]).toMatchObject({ deletePending: true, expectedDeletePath: 'P1/old.png' });
+});
+
 it('combines authentication and product state without freezing reactive getters', async () => {
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [], page: 1, pageSize: 15, total: 0, totalPages: 1 })));

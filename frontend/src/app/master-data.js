@@ -5,7 +5,6 @@ import { loginMessage } from '../shared/api.js';
 export function createMasterData() {
   const compactNavigation = window.matchMedia('(max-width: 900px)');
   let onNavigationResize;
-  let onBeforeUnload;
   const shell = {
     sidebarOpen: false,
     get accountName() { return this.user?.username ?? ''; },
@@ -22,12 +21,6 @@ export function createMasterData() {
         }
       };
       compactNavigation.addEventListener('change', onNavigationResize);
-      onBeforeUnload = (event) => {
-        if (!this.hasUnsavedText && !this.imageSlots.some((image) => image.deletePending) && !this.imageDraftSaving && !this.imageDraftError && !this.imageBusy && !this.savingDetail && !this.savingPrice && !this.noteSaving && !this.shortNoteSaving) return;
-        event.preventDefault();
-        event.returnValue = '';
-      };
-      window.addEventListener('beforeunload', onBeforeUnload);
       try {
         await this.restoreSession();
         if (this.user) { this.loadTypes(); this.loadUnits(); await this.loadProducts(1); }
@@ -41,7 +34,6 @@ export function createMasterData() {
 
     destroy() {
       compactNavigation.removeEventListener('change', onNavigationResize);
-      window.removeEventListener('beforeunload', onBeforeUnload);
     },
 
     openSidebar() {
