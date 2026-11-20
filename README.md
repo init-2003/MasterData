@@ -101,6 +101,7 @@ docker compose exec frontend pnpm test
 
 - **Apache/XAMPP** ใช้ `public/` เป็น DocumentRoot หรือเพิ่ม Alias ตาม `deploy/apache.conf.example` เปิด PHP 8.5 handler และตรวจให้ทั้งเส้นทางใหม่และเว็บหลักของ XAMPP เปิดได้เฉพาะไฟล์สาธารณะของโปรเจกต์
 - **IIS** ตั้ง Physical Path ของไซต์หรือแอปเป็น `public/` เพิ่ม PHP 8.5 FastCGI handler สำหรับ `*.php` และเปิด `pdo_sqlsrv` ใน `php.ini` ของ FastCGI ใช้ `public/web.config` สำหรับ Default Document และการส่ง JSON error status
+- โฟลเดอร์ `storage/product-images/` และ `var/` มีไฟล์ตัวแทนใน Git เพื่อให้พร้อมหลัง clone โดยรูปจริง ข้อมูลชั่วคราว และ log ไม่ถูกเก็บใน Git ให้สิทธิ์ Modify แก่บัญชีที่รัน PHP บนทั้งสองโฟลเดอร์รวมไฟล์และโฟลเดอร์ย่อย หาก IIS ใช้ ApplicationPoolIdentity ให้เพิ่ม `IIS AppPool\<ชื่อ Application Pool>` ในสิทธิ์ Security ของโฟลเดอร์
 - **ทั้งสองแบบ** ใช้ HTTPS และ `APP_HTTPS=true` ให้บัญชีที่รัน PHP อ่าน `.env` และเขียนใน `var/` ได้ ให้ document root ตอบ `index.html` เป็นหน้าเริ่มต้น ค่า `false` ใช้เมื่อพัฒนาผ่าน HTTP และยังรองรับค่าเดิม `1` กับ `0`
 
 ### เตรียมและสำรอง IIS production
@@ -109,6 +110,7 @@ docker compose exec frontend pnpm test
 - นำ `public/` (รวม `index.html`, `assets/`, `api.php` และ `web.config`) และ `backend/src/`, `backend/vendor/` ไปวางโดยรักษาโครงสร้างสัมพัทธ์ของโปรเจกต์ ตั้ง IIS Physical Path ไปที่ `public/` เท่านั้น จัด `.env`, `var/` และ `storage/` ไว้ในโฟลเดอร์โปรเจกต์เหนือ document root
 - ก่อนอัปเดต ให้สำรอง `.env` อย่างปลอดภัยและสำรอง `storage/product-images/` แยกจากไฟล์ที่ build ตรวจว่ากู้คืนได้ และอย่าทับหรือลบโฟลเดอร์รูปเมื่อ deploy ควรสำรองฐานข้อมูลตามขั้นตอนของผู้ดูแลฐานข้อมูลด้วย
 - ให้บัญชี FastCGI อ่านโค้ดและ `.env` และเขียนได้เฉพาะ `var/` กับ `storage/product-images/` ตรวจสิทธิ์และทดสอบ login, ค้นหา และรูปสินค้าหลัง deploy
+- เมื่อ API มีข้อผิดพลาด ตรวจ log โหมด production ที่ `var/production/app.log` โดยไม่เผยแพร่ข้อมูลลับ
 
 ## ทดสอบ
 

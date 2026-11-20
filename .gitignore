@@ -5,7 +5,9 @@
 /frontend/node_modules/
 /public/assets/
 /public/index.html
-/var/
-/storage/product-images/
+/var/*
+!/var/.gitkeep
+/storage/product-images/*
+!/storage/product-images/.gitkeep
 /storage/image-path-backups/
 /.phpunit.cache/
