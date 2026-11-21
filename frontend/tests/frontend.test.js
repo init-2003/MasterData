@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { ApiError, loginMessage, request } from '../src/shared/api.js';
-import { display, price, rowRange } from '../src/shared/format.js';
+import { ApiError, loginMessage, request } from '../src/services/api.js';
+import { display, price, rowRange } from '../src/utils/format.js';
 
 afterEach(() => vi.unstubAllGlobals());
 

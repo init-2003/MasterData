@@ -10,13 +10,13 @@
 
 | เส้นทาง | หน้าที่ |
 | --- | --- |
-| `frontend/index.html`, `frontend/src/styles.css` | จุดเริ่ม HTML5 และสไตล์ Tailwind CSS |
-| `frontend/src/main.jsx`, `frontend/src/app/`, `frontend/src/auth/`, `frontend/src/shared/` | React components, ส่วนงานสินค้าและบัญชี, SweetAlert2, การเรียก API และการจัดรูปแบบข้อมูลภาษาไทย |
+| `frontend/index.html`, `frontend/src/styles/global.css` | จุดเริ่ม HTML5 และสไตล์ Tailwind CSS |
+| `frontend/src/main.jsx`, `frontend/src/App.jsx`, `frontend/src/pages/`, `frontend/src/layouts/`, `frontend/src/components/`, `frontend/src/routes/` | จุดเริ่ม React, หน้าจอ ส่วนประกอบ โครงหน้า และการเลือกหน้าตามสถานะบัญชี |
+| `frontend/src/store/`, `frontend/src/services/`, `frontend/src/utils/` | state และ logic สินค้าและบัญชี, การเรียก API, รูปฉบับร่าง และตัวช่วยร่วม |
 | `public/api.php` | จุดเข้า PHP และบันทึกข้อผิดพลาดด้วย Monolog |
-| `backend/src/Http/` | จุดรับ JSON API, CSRF และ controller บัญชี |
-| `backend/src/Auth/` | Session, ตรวจบัญชี, Symfony Validator และ Rate Limiter ที่เก็บตัวนับด้วย Cache และ Lock |
-| `backend/src/Infrastructure/` | เชื่อมต่อ PDO_SQLSRV ผ่าน Microsoft ODBC และโหลดค่าจาก PHP dotenv |
-| `backend/src/App/Product/` | Controller ค้นหาสินค้า แก้ราคา และจัดการรูปสินค้า |
+| `backend/src/Controllers/`, `backend/routes/` | Controller บัญชีและสินค้า พร้อม action และ HTTP method |
+| `backend/src/Models/`, `backend/src/Services/` | repository ฐานข้อมูล, session, ตรวจบัญชี และจัดการรูปสินค้า |
+| `backend/src/Core/`, `backend/src/Middleware/` | API, CSRF, PDO_SQLSRV และ PHP dotenv |
 | `deploy/`, `public/web.config`, `public/.htaccess` | การตั้งค่า Apache/XAMPP, IIS FastCGI และ PHP built-in server |
 
 Frontend และ API ใช้ origin เดียวกันและใช้ URL แบบสัมพัทธ์เพื่อรองรับการรันใต้ path ของแอป ใช้ `public/` เป็น document root แก้ frontend ใน `frontend/` แล้ว build ด้วย Vite ซึ่งสร้าง `public/index.html` และ `public/assets/`

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Sptc\MasterData\App\Product\ProductImage;
-use Sptc\MasterData\Infrastructure\Config;
-use Sptc\MasterData\Infrastructure\Database;
+use Sptc\MasterData\Services\ProductImage;
+use Sptc\MasterData\Core\Config;
+use Sptc\MasterData\Core\Database;
 
 require getcwd() . '/backend/vendor/autoload.php';
 $config = new Config(getcwd());

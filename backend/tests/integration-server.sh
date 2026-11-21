@@ -5,7 +5,7 @@ set -eu
 test_root="$(mktemp -d /tmp/sptc-integration.XXXXXX)"
 if [ ! -f /app/backend/vendor/autoload.php ]; then composer --working-dir=/app/backend install --no-interaction; fi
 mkdir -p "$test_root/backend" "$test_root/public" "$test_root/database" "$test_root/deploy"
-cp -R /app/backend/bin /app/backend/src "$test_root/backend/"
+cp -R /app/backend/bin /app/backend/src /app/backend/routes "$test_root/backend/"
 ln -s /app/backend/vendor "$test_root/backend/vendor"
 cp /app/public/api.php /app/public/index.html "$test_root/public/"
 cp -R /app/public/assets "$test_root/public/assets"

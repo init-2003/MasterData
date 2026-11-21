@@ -1,8 +1,8 @@
 # SPTC. Master Data
 
-โค้ด backend ใน `backend/src/` แยกเป็น `Auth/` สำหรับบัญชีและ session, `App/Product/` สำหรับสินค้าและรูป, `Infrastructure/` สำหรับค่าตั้งและฐานข้อมูล และ `Http/` สำหรับจุดรับ API
+โค้ด backend ใน `backend/src/` แยกเป็น `Controllers/` สำหรับคำขอบัญชีและสินค้า, `Models/` สำหรับอ่านและบันทึกฐานข้อมูล, `Services/` สำหรับบัญชี session และรูป, `Middleware/` สำหรับตรวจ CSRF และ `Core/` สำหรับ API และการตั้งค่าฐานข้อมูล โดย `backend/routes/api.php` ระบุ action และ HTTP method
 
-โค้ด frontend ใน `frontend/src/` ใช้ React และ Tailwind CSS แยกเป็น `auth/` สำหรับบัญชี, `app/product/` สำหรับสินค้า, `shared/` สำหรับ API และตัวช่วยร่วม โดย `app/App.jsx` ประกอบหน้าจอและ `main.jsx` เริ่มแอป ส่วนสไตล์ร่วมอยู่ใน `frontend/src/styles.css`
+โค้ด frontend ใน `frontend/src/` ใช้ React และ Tailwind CSS โดย `main.jsx` เริ่มแอปและ `App.jsx` สร้าง store; `routes/` เลือกหน้าตามสถานะบัญชี, `pages/` เก็บหน้าจอ, `layouts/` เก็บโครงหน้า, `components/` เก็บส่วน UI, `services/` จัดการ API และรูปฉบับร่าง, `store/` เก็บ state และ logic, `utils/` เก็บตัวช่วย และ `styles/` เก็บสไตล์ร่วม ส่วน `hooks/` และ `constants/` เตรียมไว้ใช้เมื่อมีความจำเป็น
 
 เว็บสำหรับเข้าสู่ระบบด้วยบัญชีผู้ใช้ และค้นหาข้อมูลหลักสินค้า หน้าจอภาษาไทยใช้ Flat Design ตามสเปก พร้อมรองรับจอมือถือ
 
@@ -107,7 +107,7 @@ docker compose exec frontend pnpm test
 ### เตรียมและสำรอง IIS production
 
 - ติดตั้ง Composer dependencies สำหรับ production ด้วย `composer --working-dir=backend install --no-dev --optimize-autoloader` และ build frontend ด้วย `pnpm --dir frontend install --frozen-lockfile` ตามด้วย `pnpm --dir frontend build` ในสภาพแวดล้อม build ที่เชื่อถือได้
-- นำ `public/` (รวม `index.html`, `assets/`, `api.php` และ `web.config`) และ `backend/src/`, `backend/vendor/` ไปวางโดยรักษาโครงสร้างสัมพัทธ์ของโปรเจกต์ ตั้ง IIS Physical Path ไปที่ `public/` เท่านั้น จัด `.env`, `var/` และ `storage/` ไว้ในโฟลเดอร์โปรเจกต์เหนือ document root
+- นำ `public/` (รวม `index.html`, `assets/`, `api.php` และ `web.config`) และ `backend/src/`, `backend/routes/`, `backend/vendor/` ไปวางโดยรักษาโครงสร้างสัมพัทธ์ของโปรเจกต์ ตั้ง IIS Physical Path ไปที่ `public/` เท่านั้น จัด `.env`, `var/` และ `storage/` ไว้ในโฟลเดอร์โปรเจกต์เหนือ document root
 - ก่อนอัปเดต ให้สำรอง `.env` อย่างปลอดภัยและสำรอง `storage/product-images/` แยกจากไฟล์ที่ build ตรวจว่ากู้คืนได้ และอย่าทับหรือลบโฟลเดอร์รูปเมื่อ deploy ควรสำรองฐานข้อมูลตามขั้นตอนของผู้ดูแลฐานข้อมูลด้วย
 - ให้บัญชี FastCGI อ่านโค้ดและ `.env` และเขียนได้เฉพาะ `var/` กับ `storage/product-images/` ตรวจสิทธิ์และทดสอบ login, ค้นหา และรูปสินค้าหลัง deploy
 - เมื่อ API มีข้อผิดพลาด ตรวจ log โหมด production ที่ `var/production/app.log` โดยไม่เผยแพร่ข้อมูลลับ

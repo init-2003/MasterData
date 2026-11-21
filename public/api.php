@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
-use Sptc\MasterData\Http\Api;
-use Sptc\MasterData\Infrastructure\Config;
+use Sptc\MasterData\Core\Api;
+use Sptc\MasterData\Core\Config;
 
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');

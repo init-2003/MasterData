@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Sptc\MasterData\Infrastructure\Config;
-use Sptc\MasterData\Infrastructure\Database;
-use Sptc\MasterData\Auth\Login;
+use Sptc\MasterData\Core\Config;
+use Sptc\MasterData\Core\Database;
+use Sptc\MasterData\Services\Login;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 

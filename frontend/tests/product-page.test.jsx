@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ProductPage } from '../src/app/product/ProductPage.jsx';
+import { ProductPage } from '../src/pages/ProductPage.jsx';
 
 afterEach(() => vi.unstubAllGlobals());
 

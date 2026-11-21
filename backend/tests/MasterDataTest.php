@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Sptc\MasterData\Infrastructure\Config;
-use Sptc\MasterData\Auth\Login;
-use Sptc\MasterData\App\Product\ProductRepository;
-use Sptc\MasterData\App\Product\ProductImage;
-use Sptc\MasterData\Auth\UserRepository;
+use Sptc\MasterData\Core\Config;
+use Sptc\MasterData\Services\Login;
+use Sptc\MasterData\Models\ProductRepository;
+use Sptc\MasterData\Services\ProductImage;
+use Sptc\MasterData\Models\UserRepository;
 
 it('reads certificate trust settings safely', function () {
     $config = new Config(dirname(__DIR__, 2));
@@ -53,18 +53,19 @@ it('finds Thai names and literal wildcards, and paginates deterministically', fu
         $db->exec("INSERT INTO units (name) VALUES ('ชิ้น'), ('ไม่มีสินค้า')");
 
         expect($products->search('สินค้าตัวอย่าง', 1)['total'])->toBe(16)
+            ->and($products->search('', 1)['pageSize'])->toBe(50)
             ->and($products->search('_%[!', 1)['total'])->toBe(1)
             ->and($products->search('9999', 1)['items'][0]['code'])->toBe('A_%[!')
-            ->and($products->search('', 1)['items'])->toHaveCount(15)
-            ->and($products->search('', 9)['page'])->toBe(2)
-            ->and($products->search('', 2)['items'])->toHaveCount(2)
+            ->and($products->search('', 1, '', '', 15)['items'])->toHaveCount(15)
+            ->and($products->search('', 9, '', '', 15)['page'])->toBe(2)
+            ->and($products->search('', 2, '', '', 15)['items'])->toHaveCount(2)
             ->and($products->search('ไม่พบ', 1)['total'])->toBe(0)
             ->and($products->types())->toContain('ประเภท', 'ไม่มีสินค้า')
             ->and($products->units())->toContain('ชิ้น', 'ไม่มีสินค้า')
-            ->and($products->search('สินค้าตัวอย่าง', 2, 'ประเภท')['items'])->toHaveCount(1)
+            ->and($products->search('สินค้าตัวอย่าง', 2, 'ประเภท', '', 15)['items'])->toHaveCount(1)
             ->and($products->search('พิเศษ', 1, 'ประเภท')['total'])->toBe(0)
             ->and($products->search('', 1, 'ไม่มีสินค้า')['total'])->toBe(0)
-            ->and($products->search('สินค้าตัวอย่าง', 2, 'ประเภท', 'ชิ้น')['items'])->toHaveCount(1)
+            ->and($products->search('สินค้าตัวอย่าง', 2, 'ประเภท', 'ชิ้น', 15)['items'])->toHaveCount(1)
             ->and($products->search('', 1, '', 'ไม่มีสินค้า')['total'])->toBe(0);
     } finally {
         if ($previousMode === null) {

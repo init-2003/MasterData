@@ -1,15 +1,103 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createMasterData } from '../src/app/master-data.js';
-import { createAppStore } from '../src/app/store.js';
+import { createMasterData } from '../src/store/master-data.js';
+import { createAppStore } from '../src/store/store.js';
+import { createAuth } from '../src/store/auth.js';
 
-vi.mock('../src/shared/dialog.js', () => ({ dialog: { fire: vi.fn() } }));
+vi.mock('../src/utils/dialog.js', () => ({ dialog: { fire: vi.fn() } }));
 const drafts = vi.hoisted(() => new Map());
-vi.mock('../src/app/product/image-drafts.js', () => ({ imageDrafts: {
+vi.mock('../src/services/image-drafts.js', () => ({ imageDrafts: {
   get: async (key) => drafts.get(key),
   put: async (key, value) => { drafts.set(key, value); },
   remove: async (key) => { drafts.delete(key); },
 } }));
 afterEach(() => vi.unstubAllGlobals());
+
+it('restarts the toast timeout on repeated notifications and supports dismissal', () => {
+  vi.useFakeTimers();
+  try {
+    const app = createMasterData();
+    app.showImageToast('คัดลอกแล้ว');
+    vi.advanceTimersByTime(3000);
+    app.showImageToast('คัดลอกแล้ว');
+    expect(app.imageToastVersion).toBe(2);
+    vi.advanceTimersByTime(1500);
+    expect(app.imageToast).toBe('คัดลอกแล้ว');
+    app.dismissImageToast();
+    expect(app.imageToast).toBe('');
+    vi.advanceTimersByTime(4000);
+    expect(app.imageToast).toBe('');
+  } finally { vi.useRealTimers(); }
+});
+
+it('remembers only the username after successful login and forgets it when unchecked', async () => {
+  const data = new Map();
+  vi.stubGlobal('localStorage', { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: (key) => data.delete(key) });
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'invalid_credentials' }), { status: 401 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ user: { username: 'operator' }, csrf: 'new', demo: true }))));
+  const app = createAuth();
+  Object.assign(app, { csrf: 'token', username: 'operator', password: 'wrong', restoreSidebarPreference() {}, loadTypes() {}, loadUnits() {}, loadProducts() {}, $nextTick() {} });
+  app.setRememberUsername(true);
+  await app.signIn();
+  expect(data.size).toBe(0);
+  app.password = 'correct';
+  await app.signIn();
+  expect(data.get('sptc.remembered-username')).toBe('operator');
+  expect([...data.values()]).toEqual(['operator']);
+  expect(createAuth()).toMatchObject({ username: 'operator', rememberUsername: true, password: '' });
+  app.setRememberUsername(false);
+  expect(data.size).toBe(0);
+});
+
+it('restores sidebar visibility per viewport after refresh', () => {
+  const data = new Map();
+  vi.stubGlobal('sessionStorage', { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) });
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+  const desktop = createMasterData();
+  desktop.$nextTick = () => {};
+  desktop.toggleSidebar();
+  expect(createMasterData().sidebarOpen).toBe(false);
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
+  const mobile = createMasterData();
+  expect(mobile.sidebarOpen).toBe(false);
+  mobile.$nextTick = () => {};
+  mobile.toggleSidebar();
+  expect(createMasterData().sidebarOpen).toBe(true);
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+  expect(createMasterData().sidebarOpen).toBe(false);
+});
+
+it('opens the desktop sidebar without blocking content and uses a modal menu on mobile', () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+  const desktop = createMasterData();
+  expect(desktop.sidebarOpen).toBe(true);
+  expect(desktop.backgroundInert).toBe(false);
+  expect(desktop.sidebarRole).toBeNull();
+  desktop.$nextTick = () => {};
+  desktop.toggleSidebar();
+  expect(desktop.sidebarOpen).toBe(false);
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
+  const mobile = createMasterData();
+  expect(mobile.sidebarOpen).toBe(false);
+  mobile.$nextTick = () => {};
+  mobile.toggleSidebar();
+  expect(mobile.sidebarRole).toBe('dialog');
+  expect(mobile.backgroundInert).toBe(true);
+});
+
+it('keeps keyboard focus within the sidebar after removing its account controls', () => {
+  const close = { focus: vi.fn() };
+  const link = { focus: vi.fn() };
+  vi.stubGlobal('document', { activeElement: link });
+  const app = createMasterData();
+  app.isCompact = true;
+  app.sidebarOpen = true;
+  app.$refs = { sidebarClose: close, catalogLink: link };
+  const event = { shiftKey: false, preventDefault: vi.fn() };
+  app.handleSidebarTab(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(close.focus).toHaveBeenCalledOnce();
+});
 
 it('restores edit fields and staged image deletion with their original conflict values', async () => {
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
@@ -229,4 +317,50 @@ it('stages image deletion until saving and rejects invalid price before requests
   expect(fetch).toHaveBeenCalledOnce();
   expect(app.imageSlots[0].path).toBeNull();
   expect(app.editingDetail).toBe(false);
+});
+
+it('shows error and success toasts for login, logout, and session expiration', async () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'invalid_credentials' }), { status: 401 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ user: { username: 'operator' }, csrf: 'new', demo: false })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ user: null, csrf: 'logged-out', demo: false })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  vi.stubGlobal('fetch', fetch);
+  const app = createMasterData();
+  Object.assign(app, { csrf: 'token', username: 'operator', password: 'wrong', loadTypes() {}, loadUnits() {}, loadProducts: vi.fn(), $nextTick() {} });
+  await app.signIn();
+  expect(app.imageToastType).toBe('error');
+  expect(app.imageToast).toBe(app.loginError);
+  app.password = 'correct';
+  await app.signIn();
+  expect(app.imageToastType).toBe('success');
+  expect(app.imageToast).toBe('เข้าสู่ระบบแล้ว');
+  await app.signOut();
+  expect(app.imageToastType).toBe('success');
+  expect(app.imageToast).toBe('ออกจากระบบแล้ว');
+  const sessionApp = createMasterData();
+  sessionApp.user = { username: 'operator' };
+  await sessionApp.loadProducts(1);
+  expect(sessionApp.user).toBeNull();
+  expect(sessionApp.imageToastType).toBe('error');
+  expect(sessionApp.imageToast).toBe('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+});
+
+it('shows error toast when detail validation or saving fails', async () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'failed' }), { status: 500 }));
+  vi.stubGlobal('fetch', fetch);
+  const app = createMasterData();
+  app.selectedProduct = { id: 'P1', price: '10.00' };
+  app.csrf = 'token';
+  app.startDetailEdit();
+  app.priceInput = 'bad';
+  await app.saveDetail();
+  expect(app.imageToastType).toBe('error');
+  expect(app.imageToast).toBe(app.detailSaveError);
+  app.priceInput = '12.00';
+  await app.saveDetail();
+  expect(app.imageToastType).toBe('error');
+  expect(app.imageToast).toBe('บันทึกข้อมูลบางส่วนไม่สำเร็จ กรุณาตรวจสอบ');
 });
