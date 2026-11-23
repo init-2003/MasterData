@@ -6,6 +6,7 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Sptc\MasterData\Core\Api;
 use Sptc\MasterData\Core\Config;
+use Symfony\Component\Lock\Exception\InvalidArgumentException as LockInvalidArgumentException;
 
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
@@ -28,6 +29,9 @@ try {
     (new Api($config))->dispatch();
 } catch (Throwable $error) {
     $context = ['type' => $error::class, 'code' => $error->getCode()];
+    if ($error instanceof LockInvalidArgumentException) {
+        $context['lock_error'] = $error->getMessage();
+    }
     try {
         $logger?->error('API request failed', $context);
     } catch (Throwable) {

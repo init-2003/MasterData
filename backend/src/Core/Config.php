@@ -49,7 +49,10 @@ final readonly class Config
 
     public function runtime(): string
     {
-        $path = $this->root . '/var/' . ($this->demo() ? 'demo' : 'production');
+        $path = $this->demo() ? '' : trim($this->value('APP_RUNTIME_DIR'));
+        if ($path === '') {
+            $path = $this->root . '/var/' . ($this->demo() ? 'demo' : 'production');
+        }
         if (!is_dir($path) && !@mkdir($path, 0700, true) && !is_dir($path)) {
             throw new RuntimeException('Unable to create runtime directory');
         }

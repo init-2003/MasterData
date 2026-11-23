@@ -110,7 +110,8 @@ docker compose exec frontend pnpm test
 - นำ `public/` (รวม `index.html`, `assets/`, `api.php` และ `web.config`) และ `backend/src/`, `backend/routes/`, `backend/vendor/` ไปวางโดยรักษาโครงสร้างสัมพัทธ์ของโปรเจกต์ ตั้ง IIS Physical Path ไปที่ `public/` เท่านั้น จัด `.env`, `var/` และ `storage/` ไว้ในโฟลเดอร์โปรเจกต์เหนือ document root
 - ก่อนอัปเดต ให้สำรอง `.env` อย่างปลอดภัยและสำรอง `storage/product-images/` แยกจากไฟล์ที่ build ตรวจว่ากู้คืนได้ และอย่าทับหรือลบโฟลเดอร์รูปเมื่อ deploy ควรสำรองฐานข้อมูลตามขั้นตอนของผู้ดูแลฐานข้อมูลด้วย
 - ให้บัญชี FastCGI อ่านโค้ดและ `.env` และเขียนได้เฉพาะ `var/` กับ `storage/product-images/` ตรวจสิทธิ์และทดสอบ login, ค้นหา และรูปสินค้าหลัง deploy
-- เมื่อ API มีข้อผิดพลาด ตรวจ log โหมด production ที่ `var/production/app.log` โดยไม่เผยแพร่ข้อมูลลับ
+- หาก IIS อ่านโค้ดจาก Network Share ให้ตั้ง `APP_RUNTIME_DIR='D:\tempweb\var\production'` ใน `.env` ของเว็บจริงเพื่อเก็บ session, cache, ไฟล์ล็อก Login และ log บนดิสก์ของ IIS สร้างโฟลเดอร์นอก document root และให้บัญชีที่รัน PHP เขียนได้ด้วยสิทธิ์ Modify ผู้ใช้ต้องเข้าสู่ระบบอีกครั้งหลังย้าย session หากเว้นค่าไว้จะใช้ `var/production` โหมด demo ใช้ `var/demo` ตามเดิม
+- เมื่อ API มีข้อผิดพลาด ตรวจ `app.log` ใน `APP_RUNTIME_DIR` หรือ `var/production` เมื่อใช้ค่าเริ่มต้น โดยไม่เผยแพร่ข้อมูลลับ
 
 ## ทดสอบ
 
