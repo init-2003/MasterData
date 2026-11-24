@@ -1,4 +1,5 @@
 import { imageDrafts } from './image-drafts.js';
+import { createImageDraftToken } from '../utils/image-draft-token.js';
 
 const fileOperations = new Map();
 const storageKey = (username, menu) => JSON.stringify(['sptc.website-image-editor', username, menu]);
@@ -29,7 +30,7 @@ export function readWebsiteImageDraft(username, menu) {
 }
 
 export function newWebsiteImageDraft(item) {
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) => value.toString(16).padStart(2, '0')).join('');
+  const token = createImageDraftToken();
   const mode = item.sourceType === 'url' ? 'url' : 'upload';
   return {
     token,

@@ -2,6 +2,7 @@ import { request } from '../../services/api.js';
 import { dialog } from '../../utils/dialog.js';
 import { display, number, price, rowRange } from '../../utils/format.js';
 import { imageDrafts } from '../../services/image-drafts.js';
+import { createImageDraftToken } from '../../utils/image-draft-token.js';
 import { validateWebsiteImageUrl } from '../../utils/website-image-url.js';
 
 export function createProduct() {
@@ -18,7 +19,11 @@ export function createProduct() {
   let draftToken;
   try {
     draftToken = sessionStorage.getItem('sptc.image-draft-tab');
-    if (!draftToken) { draftToken = crypto.randomUUID(); sessionStorage.setItem('sptc.image-draft-tab', draftToken); }
+    if (!draftToken) {
+      const token = createImageDraftToken();
+      sessionStorage.setItem('sptc.image-draft-tab', token);
+      draftToken = token;
+    }
   } catch { /* Draft persistence is unavailable. */ }
   const draftKey = (user, id, slot) => JSON.stringify([draftToken, user, id, slot]);
   const queueDraft = (operation, onFailure = () => {}) => { draftWrites = draftWrites.catch(() => {}).then(operation).catch(onFailure); };
