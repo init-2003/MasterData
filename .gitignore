@@ -10,4 +10,5 @@
 /storage/product-images/*
 !/storage/product-images/.gitkeep
 /storage/image-path-backups/
+/storage/website-images/
 /.phpunit.cache/

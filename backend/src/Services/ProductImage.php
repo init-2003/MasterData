@@ -13,7 +13,8 @@ final readonly class ProductImage
     public const MAX_SIZE = 5 * 1024 * 1024;
     private const PREFIX = 'storage/product-images/';
 
-    public function __construct(private Config $config) {}
+    /** @param 'product-images'|'website-images' $directoryName */
+    public function __construct(private Config $config, private string $directoryName = 'product-images') {}
 
     public static function folder(string $code): string
     {
@@ -36,11 +37,32 @@ final readonly class ProductImage
         $relative = self::shortPath($relative);
         $prefix = self::folder($code) . '/';
         $filename = substr($relative, strlen($prefix));
-        if (!in_array($slot, [1, 2], true) || !str_starts_with($relative, $prefix) || !mb_check_encoding($filename, 'UTF-8') || !preg_match('/\.png\z/iD', $filename) || preg_match('/[<>:"\/\\\\|?*\x00-\x1F]/u', $filename) || preg_match('/\A(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?\z/i', $filename)) throw new InvalidArgumentException('Invalid image path');
-        $base = $this->config->demo() ? $this->config->root . '/var/demo/product-images/' : $this->config->root . '/' . self::PREFIX;
+        if (!in_array($slot, [1, 2], true) || !str_starts_with($relative, $prefix) || $this->filenameMediaType($filename) === null) {
+            throw new InvalidArgumentException('Invalid image path');
+        }
+        $base = $this->config->root . ($this->config->demo() ? '/var/demo/' : '/storage/') . $this->directoryName . '/';
         $directory = $base . self::folder($code);
         if (is_link($directory)) throw new RuntimeException('Image directory is a symbolic link');
         return $directory . '/' . $filename;
+    }
+
+    public function filenameMediaType(string $filename): ?string
+    {
+        if (!mb_check_encoding($filename, 'UTF-8') || preg_match('/[<>:"\/\\\\|?*\x00-\x1F]/u', $filename)
+            || preg_match('/\A(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?\z/i', $filename)) {
+            return null;
+        }
+        return self::mediaTypeForExtension(pathinfo($filename, PATHINFO_EXTENSION));
+    }
+
+    private static function mediaTypeForExtension(string $extension): ?string
+    {
+        return match (strtolower($extension)) {
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            default => null,
+        };
     }
 
     public function save(string $code, int $slot, string $uploadedPath, string $originalName): string
@@ -53,7 +75,17 @@ final readonly class ProductImage
         $stem = pathinfo($filename, PATHINFO_FILENAME);
         if ($stem === '') throw new InvalidArgumentException('Invalid image filename');
         $stem = self::folder($stem);
-        $relative = self::folder($code) . '/' . $stem . '.png';
+        $type = $info['mime'];
+        $originalExtension = pathinfo($filename, PATHINFO_EXTENSION);
+        $extension = self::mediaTypeForExtension($originalExtension) === $type
+            ? $originalExtension
+            : match ($type) {
+                'image/jpeg' => 'jpg',
+                'image/webp' => 'webp',
+                default => 'png',
+            };
+        $folder = self::folder($code);
+        $relative = $folder . '/' . $stem . '.' . $extension;
         if (strlen($relative) > 200) throw new InvalidArgumentException('Image path is too long');
         $path = $this->path($code, $slot, $relative);
         $bytes = file_get_contents($uploadedPath);
@@ -67,15 +99,20 @@ final readonly class ProductImage
         $lock = null;
         try {
             imagesavealpha($image, true);
-            if (!imagepng($image, $temporary)) throw new RuntimeException('Unable to encode image');
+            $encoded = match ($type) {
+                'image/jpeg' => imagejpeg($image, $temporary, 92),
+                'image/webp' => imagewebp($image, $temporary, IMG_WEBP_LOSSLESS),
+                default => imagepng($image, $temporary),
+            };
+            if (!$encoded) throw new RuntimeException('Unable to encode image');
             $lock = fopen($dir . '/.upload.lock', 'c');
             if ($lock === false || !flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock image directory');
             $entries = scandir($dir);
             if ($entries === false) throw new RuntimeException('Unable to read image directory');
             $used = array_fill_keys(array_map(static fn (string $entry): string => mb_strtolower($entry, 'UTF-8'), $entries), true);
             for ($number = 0; $number <= 10000; $number++) {
-                $name = $stem . ($number === 0 ? '' : '-' . $number) . '.png';
-                $relative = self::folder($code) . '/' . $name;
+                $name = $stem . ($number === 0 ? '' : '-' . $number) . '.' . $extension;
+                $relative = $folder . '/' . $name;
                 if (strlen($relative) > 200) throw new InvalidArgumentException('Image path is too long');
                 if (isset($used[mb_strtolower($name, 'UTF-8')])) continue;
                 $path = $this->path($code, $slot, $relative);

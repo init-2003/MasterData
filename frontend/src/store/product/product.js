@@ -2,6 +2,7 @@ import { request } from '../../services/api.js';
 import { dialog } from '../../utils/dialog.js';
 import { display, number, price, rowRange } from '../../utils/format.js';
 import { imageDrafts } from '../../services/image-drafts.js';
+import { validateWebsiteImageUrl } from '../../utils/website-image-url.js';
 
 export function createProduct() {
   let pendingProducts;
@@ -56,6 +57,7 @@ export function createProduct() {
     shortNoteSaving: false,
     editingShortNote: false,
     imageSlots: [],
+    productImageConfig: { uploadEnabled: true, allowedImageHosts: [], maxImageUrlLength: 200, slotMaxLengths: { '1': 200, '2': 200 } },
     imagesLoading: false,
     imagesError: false,
     imageBusy: false,
@@ -94,7 +96,11 @@ export function createProduct() {
     get pageLabel() { return `หน้า ${number.format(this.page)} / ${number.format(this.totalPages)}`; },
     get resultRange() { return rowRange(this.page, this.pageSize, this.total); },
     get hasUnsavedText() { return (this.editingPrice && this.priceInput !== this.originalPriceInput) || (this.editingNote && this.noteInput !== (this.note ?? '')) || (this.editingShortNote && this.shortNoteInput !== (this.shortNote ?? '')); },
-    get hasUnsavedDetail() { return this.hasUnsavedText || imageFiles.size > 0 || this.imageSlots.some((image) => image.deletePending); },
+    get hasUnsavedDetail() { return this.hasUnsavedText || imageFiles.size > 0 || this.imageSlots.some((image) => image.deletePending || image.urlPending); },
+    slotMaxLength(slot) {
+      const value = Number(this.productImageConfig?.slotMaxLengths?.[String(slot)] ?? this.productImageConfig?.maxImageUrlLength ?? 200);
+      return Number.isInteger(value) && value > 0 ? value : 200;
+    },
 
     clearCatalog() {
       this.imageSlots.forEach((image) => this.cancelImage(image));
@@ -309,6 +315,8 @@ export function createProduct() {
           noteInput: this.noteInput, expectedNote: this.note,
           shortNoteInput: this.shortNoteInput, expectedShortNote: this.shortNote,
           deletedImages: this.imageSlots.filter((image) => image.deletePending).map((image) => ({ slot: image.slot, expected: image.expectedDeletePath ?? image.path ?? null })),
+          urlImages: this.imageSlots.filter((image) => image.urlPending).map((image) => ({ slot: image.slot, urlInput: image.urlInput ?? '', expected: image.expectedUrlPath ?? image.path ?? null })),
+          imageModes: this.imageSlots.map((image) => ({ slot: image.slot, mode: image.mode === 'url' ? 'url' : 'upload' })),
         }));
       } catch { this.detailSaveError = 'เก็บข้อมูลแก้ไขชั่วคราวไม่ได้ ข้อมูลอาจหายเมื่อรีเฟรช'; }
     },
@@ -325,9 +333,17 @@ export function createProduct() {
       if (saved.noteInput !== (saved.expectedNote ?? '')) this.note = saved.expectedNote;
       this.shortNoteInput = saved.shortNoteInput;
       if (saved.shortNoteInput !== (saved.expectedShortNote ?? '')) this.shortNote = saved.expectedShortNote;
+      for (const modeEntry of saved.imageModes ?? []) {
+        const image = this.imageSlots.find((item) => item.slot === modeEntry.slot);
+        if (image && (modeEntry.mode === 'upload' || modeEntry.mode === 'url')) image.mode = modeEntry.mode;
+      }
       for (const deleted of saved.deletedImages ?? []) {
         const image = this.imageSlots.find((item) => item.slot === deleted.slot);
         if (image) { image.deletePending = true; image.expectedDeletePath = deleted.expected; }
+      }
+      for (const entry of saved.urlImages ?? []) {
+        const image = this.imageSlots.find((item) => item.slot === entry.slot);
+        if (image) this.setImageUrlInput(image, entry.urlInput ?? '', entry.expected ?? null);
       }
       this.persistDetailEdit();
     },
@@ -338,7 +354,19 @@ export function createProduct() {
         if (!result.isConfirmed) return;
       }
       this.cancelImages();
-      this.imageSlots.forEach((image) => { image.deletePending = false; });
+      this.imageSlots.forEach((image) => {
+        image.deletePending = false;
+        image.expectedDeletePath = undefined;
+        image.mode = image.sourceType === 'url' ? 'url' : 'upload';
+        image.urlInput = image.originalUrl ?? '';
+        image.urlPending = false;
+        image.urlValid = Boolean(image.originalUrl);
+        image.normalizedUrl = image.originalUrl ?? '';
+        image.urlPreviewFailed = false;
+        image.expectedUrlPath = undefined;
+        image.invalid = false;
+        image.error = '';
+      });
       this.priceInput = this.originalPriceInput;
       this.noteInput = this.note ?? '';
       this.shortNoteInput = this.shortNote ?? '';
@@ -359,6 +387,17 @@ export function createProduct() {
       if (this.priceInput !== this.originalPriceInput && !/^\d{1,13}(?:\.\d{1,2})?$/.test(this.priceInput)) this.priceError = 'กรอกราคาตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (this.noteInput.length > 4000) this.noteError = 'คำอธิบายยาวเกิน 4,000 ตัวอักษร';
       if (this.shortNoteInput.length > 255) this.shortNoteError = 'คำอธิบายโดยย่อยาวเกิน 255 ตัวอักษร';
+      for (const image of this.imageSlots.filter((item) => item.urlPending)) {
+        const check = validateWebsiteImageUrl(image.urlInput ?? '', {
+          allowedHosts: this.productImageConfig.allowedImageHosts,
+          maxLength: this.slotMaxLength(image.slot),
+          asciiOnly: true,
+        });
+        image.urlValid = check.valid;
+        image.normalizedUrl = check.url;
+        image.invalid = !check.valid;
+        image.error = check.valid ? '' : check.error;
+      }
       if (this.priceError || this.noteInput.length > 4000 || this.shortNoteInput.length > 255 || this.imageSlots.some((image) => image.invalid)) {
         this.detailSaveError = 'กรุณาตรวจสอบข้อมูลที่ระบุก่อนบันทึก';
         this.showToast?.(this.detailSaveError, 'error');
@@ -376,11 +415,54 @@ export function createProduct() {
           await this.uploadImages(true);
           for (const slot of slots) (this.imageSlots.find((image) => image.slot === slot)?.pending ? failures : successes).push(`รูปที่ ${slot}`);
         }
+        for (const image of this.imageSlots.filter((item) => item.urlPending)) {
+          image.error = '';
+          try {
+            const result = await request('save-product-image-url', {
+              body: {
+                id: this.selectedProduct.id,
+                slot: image.slot,
+                expected: image.expectedUrlPath ?? image.path ?? null,
+                imageUrl: image.normalizedUrl || (image.urlInput ?? '').trim(),
+              },
+              csrf: this.csrf,
+            });
+            image.path = result.path;
+            image.imageUrl = result.imageUrl ?? result.path;
+            image.sourceType = 'url';
+            image.mode = 'url';
+            image.originalUrl = image.imageUrl;
+            image.urlInput = image.imageUrl;
+            image.normalizedUrl = image.imageUrl;
+            image.urlValid = true;
+            image.url = image.imageUrl;
+            image.missing = false;
+            image.urlPending = false;
+            image.expectedUrlPath = undefined;
+            image.invalid = false;
+            image.error = '';
+            this.catalogImageVersion++;
+            successes.push(`รูปที่ ${image.slot}`);
+          } catch (error) {
+            image.error = error.status === 409
+              ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง'
+              : error.message === 'image_host_not_allowed'
+                ? 'โดเมนของลิงก์ภาพไม่ได้อยู่ในรายการที่ผู้ดูแลอนุญาต'
+                : error.message === 'image_url_too_long'
+                  ? `ลิงก์ภาพยาวเกินขนาดที่บันทึกได้ (สูงสุด ${this.slotMaxLength(image.slot).toLocaleString('th-TH')} ไบต์)`
+                  : error.message === 'invalid_image_url'
+                    ? 'กรุณากรอกลิงก์ภาพ http:// หรือ https:// ที่ถูกต้อง'
+                    : 'บันทึกลิงก์รูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
+            failures.push(`รูปที่ ${image.slot}`);
+          }
+        }
         for (const image of this.imageSlots.filter((item) => item.deletePending)) {
           try {
             await request('delete-product-image', { body: { id: this.selectedProduct.id, slot: image.slot, expected: image.expectedDeletePath ?? image.path ?? null }, csrf: this.csrf });
-            image.path = null; image.url = ''; image.missing = true; image.deletePending = false; image.error = '';
-            if (image.slot === 1) this.catalogImageVersion++;
+            image.path = null; image.imageUrl = null; image.sourceType = null; image.mode = 'upload';
+            image.originalUrl = ''; image.urlInput = ''; image.urlPending = false; image.urlValid = false; image.normalizedUrl = ''; image.urlPreviewFailed = false;
+            image.url = ''; image.missing = true; image.deletePending = false; image.expectedDeletePath = undefined; image.error = '';
+            this.catalogImageVersion++;
             successes.push(`รูปที่ ${image.slot}`);
           } catch (error) {
             image.error = error.status === 409 ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง' : 'ลบรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
@@ -470,12 +552,98 @@ export function createProduct() {
       try {
         const data = await request('product-images', { query: { id: this.selectedProduct.id }, signal: controller.signal });
         if (controller.signal.aborted) return;
-        this.imageSlots = data.images.map((item) => ({ ...item, inputId: `product-image-${item.slot}`, url: item.exists ? `./api.php?${new URLSearchParams({ action: 'product-image', id: this.selectedProduct.id, slot: item.slot, v: Date.now().toString() })}` : '', preview: '', error: '', message: '', missing: !item.exists }));
+        if (data.config) this.productImageConfig = data.config;
+        this.imageSlots = data.images.map((item) => {
+          const sourceType = item.sourceType ?? (item.exists ? 'upload' : null);
+          const initialMode = sourceType === 'url' ? 'url' : 'upload';
+          const initialUrl = sourceType === 'url' ? (item.imageUrl ?? '') : '';
+          return {
+            ...item,
+            inputId: `product-image-${item.slot}`,
+            sourceType,
+            imageUrl: item.imageUrl ?? null,
+            mode: initialMode,
+            urlInput: initialUrl,
+            originalUrl: initialUrl,
+            urlPending: false,
+            urlValid: Boolean(initialUrl),
+            normalizedUrl: initialUrl,
+            urlPreviewFailed: false,
+            url: item.exists
+              ? (sourceType === 'url'
+                ? (item.preview || '')
+                : `./api.php?${new URLSearchParams({ action: 'product-image', id: this.selectedProduct.id, slot: item.slot, v: Date.now().toString() })}`)
+              : '',
+            preview: '',
+            error: '',
+            message: '',
+            missing: !item.exists,
+          };
+        });
       } catch (error) {
         if (!controller.signal.aborted) this.imagesError = true;
       } finally {
         if (imageRequest === controller) { this.imagesLoading = false; imageRequest = undefined; }
       }
+    },
+    switchImageMode(image, nextMode) {
+      if (this.imageBusy || this.savingDetail || image.mode === nextMode) return;
+      image.mode = nextMode;
+      image.error = '';
+      image.invalid = false;
+      image.urlPreviewFailed = false;
+      if (nextMode === 'url') {
+        if (image.pending) this.cancelImage(image);
+        image.deletePending = false;
+        image.expectedDeletePath = undefined;
+      } else {
+        image.urlPending = false;
+        image.urlInput = image.originalUrl ?? '';
+        image.urlValid = Boolean(image.originalUrl);
+        image.normalizedUrl = image.originalUrl ?? '';
+        image.expectedUrlPath = undefined;
+      }
+      this.persistDetailEdit();
+    },
+    setImageUrlInput(image, value, restoredExpected) {
+      if (this.imageBusy || this.savingDetail) return;
+      image.deletePending = false;
+      image.expectedDeletePath = undefined;
+      if (image.pending) this.cancelImage(image);
+      image.mode = 'url';
+      image.urlInput = value;
+      image.urlPreviewFailed = false;
+      image.error = '';
+      image.invalid = false;
+      const trimmed = value.trim();
+      const original = (image.originalUrl ?? '').trim();
+      if (trimmed !== original) {
+        if (trimmed !== '') {
+          image.urlPending = true;
+          if (restoredExpected !== undefined) image.expectedUrlPath = restoredExpected;
+          else if (image.expectedUrlPath === undefined) image.expectedUrlPath = image.path ?? null;
+          const check = validateWebsiteImageUrl(trimmed, {
+            allowedHosts: this.productImageConfig.allowedImageHosts,
+            maxLength: this.slotMaxLength(image.slot),
+            asciiOnly: true,
+          });
+          image.urlValid = check.valid;
+          image.normalizedUrl = check.url;
+          image.invalid = !check.valid;
+          image.error = check.valid ? '' : check.error;
+        } else {
+          image.urlPending = false;
+          image.urlValid = false;
+          image.normalizedUrl = '';
+          image.expectedUrlPath = undefined;
+        }
+      } else {
+        image.urlPending = false;
+        image.urlValid = Boolean(original);
+        image.normalizedUrl = original;
+        image.expectedUrlPath = undefined;
+      }
+      this.persistDetailEdit();
     },
     imageLoaded(image) { image.missing = false; },
     imageFailed(image) { image.missing = true; },
@@ -501,6 +669,10 @@ export function createProduct() {
     },
     selectImageFile(file, image, input = null, restoredExpected) {
       if (this.imageBusy) return;
+      image.mode = 'upload';
+      image.urlPending = false;
+      image.urlInput = image.originalUrl ?? '';
+      image.expectedUrlPath = undefined;
       image.deletePending = false;
       image.expectedDeletePath = undefined;
       this.persistDetailEdit();
@@ -578,6 +750,10 @@ export function createProduct() {
     stageImageDelete(image) {
       if (!this.editingDetail || this.savingDetail) return;
       if (image.pending) this.cancelImage(image);
+      image.urlPending = false;
+      image.urlInput = image.originalUrl ?? '';
+      image.expectedUrlPath = undefined;
+      image.invalid = false;
       if (image.path || !image.missing) { image.deletePending = true; image.expectedDeletePath = image.path ?? null; }
       image.error = '';
       this.persistDetailEdit();
@@ -623,12 +799,28 @@ export function createProduct() {
             const result = await request('upload-product-image', { body: form, csrf: this.csrf });
             this.cancelImage(image);
             image.path = result.path;
+            image.imageUrl = result.imageUrl ?? result.path;
+            image.sourceType = 'upload';
+            image.mode = 'upload';
+            image.originalUrl = '';
+            image.urlInput = '';
+            image.urlPending = false;
+            image.urlValid = false;
+            image.normalizedUrl = '';
             image.url = `./api.php?${new URLSearchParams({ action: 'product-image', id: this.selectedProduct.id, slot: image.slot, v: Date.now().toString() })}`;
             image.missing = false;
-            if (image.slot === 1) this.catalogImageVersion++;
+            this.catalogImageVersion++;
             succeeded.push(image.slot);
           } catch (error) {
-            image.error = error.status === 409 ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง' : error.status === 413 || error.status === 422 ? 'รูปหรือรหัสสินค้าไม่ถูกต้อง หรือรูปมีขนาดเกิน 5 MB' : 'อัปโหลดรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
+            image.error = error.status === 409
+              ? 'รูปนี้มีการเปลี่ยนแปลงแล้ว กรุณาปิดและเปิดรายละเอียดใหม่ก่อนลองอีกครั้ง'
+              : error.message === 'image_url_too_long'
+                ? `ลิงก์รูปหรือชื่อไฟล์ยาวเกินขนาดคอลัมน์ (สูงสุด ${this.slotMaxLength(image.slot).toLocaleString('th-TH')} ไบต์) กรุณาย่อชื่อไฟล์`
+                : error.message === 'public_url_not_configured'
+                  ? 'ระบบยังไม่ได้ตั้งค่าโดเมนสำหรับสร้างลิงก์รูปสินค้า (APP_PUBLIC_ORIGIN)'
+                  : error.status === 413 || error.status === 422
+                    ? 'รูปหรือรหัสสินค้าไม่ถูกต้อง หรือรูปมีขนาดเกิน 5 MB'
+                    : 'อัปโหลดรูปไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
           }
         }
         if (succeeded.length && succeeded.length < pending.length) this.imageSaveMessage = `บันทึกรูปที่ ${succeeded.join(', ')} แล้ว กรุณาตรวจสอบรูปที่บันทึกไม่สำเร็จ`;
@@ -651,13 +843,6 @@ export function createProduct() {
         this.priceError = error.status === 409 ? 'ราคามีการเปลี่ยนแปลงแล้ว กรุณาปิดรายละเอียดและโหลดรายการใหม่ก่อนแก้ไขอีกครั้ง' : 'บันทึกราคาไม่ได้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ';
         return false;
       } finally { this.savingPrice = false; }
-    },
-    handleDetailTab(event) {
-      const controls = [...event.currentTarget.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)')].filter((element) => element.getClientRects().length);
-      const first = controls[0];
-      const last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     },
   };
 }

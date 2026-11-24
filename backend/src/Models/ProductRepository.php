@@ -10,12 +10,17 @@ use Sptc\MasterData\Services\ProductImage;
 use PDO;
 use RuntimeException;
 
-final readonly class ProductRepository
+final class ProductRepository
 {
     public const PAGE_SIZE = 50;
     public const MAX_PAGE_SIZE = 500;
+    public const DEFAULT_MAX_IMAGE_URL_LENGTH = 200;
+    public const MAX_URL_CAP = 2048;
 
-    public function __construct(private PDO $database, private Config $config)
+    /** @var array<int, array{maxLength: int, utf16: bool}> */
+    private array $imageColumnSpecs = [];
+
+    public function __construct(private readonly PDO $database, private readonly Config $config)
     {
     }
 
@@ -142,21 +147,75 @@ final readonly class ProductRepository
         return ['code' => $code, 'image1' => $row['image1'] === null || $row['image1'] === '' ? null : (string) $row['image1'], 'image2' => $row['image2'] === null || $row['image2'] === '' ? null : (string) $row['image2']];
     }
 
-    /** @return array{code:string,slot:int}|null */
-    public function findImagePath(string $path): ?array
+    /** @return array{maxLength: int, utf16: bool} */
+    public function imageColumnSpec(int $slot): array
+    {
+        if (!in_array($slot, [1, 2], true)) throw new RuntimeException('Invalid image slot');
+        if (isset($this->imageColumnSpecs[$slot])) {
+            return $this->imageColumnSpecs[$slot];
+        }
+        if ($this->config->demo()) {
+            return $this->imageColumnSpecs[$slot] = ['maxLength' => self::DEFAULT_MAX_IMAGE_URL_LENGTH, 'utf16' => false];
+        }
+
+        $schema = $this->config->value('DB_PRODUCT_SCHEMA', 'dbo');
+        $table = $this->config->value('DB_PRODUCT_TABLE', 'Trade');
+        $column = 'Trade_Image' . $slot;
+        $query = $this->database->prepare(
+            'SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $query->execute([$schema, $table, $column]);
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $dataType = strtolower((string) ($row['DATA_TYPE'] ?? 'varchar'));
+            $utf16 = in_array($dataType, ['nvarchar', 'nchar'], true);
+            $rawLength = isset($row['CHARACTER_MAXIMUM_LENGTH']) ? (int) $row['CHARACTER_MAXIMUM_LENGTH'] : 0;
+            if ($rawLength === -1) {
+                return $this->imageColumnSpecs[$slot] = ['maxLength' => self::MAX_URL_CAP, 'utf16' => $utf16];
+            }
+            if ($rawLength > 0) {
+                return $this->imageColumnSpecs[$slot] = ['maxLength' => min($rawLength, self::MAX_URL_CAP), 'utf16' => $utf16];
+            }
+        }
+
+        $fallback = $this->database->prepare('SELECT COL_LENGTH(?, ?)');
+        $fallback->execute([$schema . '.' . $table, $column]);
+        $bytes = $fallback->fetchColumn();
+        if (is_numeric($bytes)) {
+            $byteLength = (int) $bytes;
+            if ($byteLength === -1) {
+                return $this->imageColumnSpecs[$slot] = ['maxLength' => self::MAX_URL_CAP, 'utf16' => false];
+            }
+            if ($byteLength > 0) {
+                return $this->imageColumnSpecs[$slot] = ['maxLength' => min($byteLength, self::MAX_URL_CAP), 'utf16' => false];
+            }
+        }
+
+        return $this->imageColumnSpecs[$slot] = ['maxLength' => self::DEFAULT_MAX_IMAGE_URL_LENGTH, 'utf16' => false];
+    }
+
+    /**
+     * @param list<string>|null $candidates
+     * @return array{code:string,slot:int}|null
+     */
+    public function findImagePath(string $path, ?array $candidates = null): ?array
     {
         $table = $this->config->demo() ? '[products]' : $this->configuredTable();
         $codeColumn = $this->column('CODE', 'code', true);
         $first = $this->config->demo() ? '[image1]' : '[Trade_Image1]';
         $second = $this->config->demo() ? '[image2]' : '[Trade_Image2]';
-        $short = ProductImage::shortPath($path);
-        $old = ProductImage::oldPath($path);
-        $query = $this->database->prepare("SELECT {$codeColumn} AS [code], {$first} AS [image1], {$second} AS [image2] FROM {$table} WHERE {$first} IN (?, ?) OR {$second} IN (?, ?)");
-        $query->execute([$short, $old, $short, $old]);
+        $values = $candidates ?? [ProductImage::shortPath($path), ProductImage::oldPath($path)];
+        $values = array_values(array_unique(array_filter($values, static fn (string $v): bool => $v !== '')));
+        if ($values === []) return null;
+        $placeholders = implode(', ', array_fill(0, count($values), '?'));
+        $query = $this->database->prepare("SELECT {$codeColumn} AS [code], {$first} AS [image1], {$second} AS [image2] FROM {$table} WHERE {$first} IN ({$placeholders}) OR {$second} IN ({$placeholders})");
+        $query->execute([...$values, ...$values]);
         foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $row) {
             if (!is_array($row) || !is_string($row['code'] ?? null)) continue;
-            if (in_array($row['image1'] ?? null, [$short, $old], true)) return ['code' => trim($row['code']), 'slot' => 1];
-            if (in_array($row['image2'] ?? null, [$short, $old], true)) return ['code' => trim($row['code']), 'slot' => 2];
+            if (in_array($row['image1'] ?? null, $values, true)) return ['code' => trim($row['code']), 'slot' => 1];
+            if (in_array($row['image2'] ?? null, $values, true)) return ['code' => trim($row['code']), 'slot' => 2];
         }
         return null;
     }

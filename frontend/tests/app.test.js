@@ -85,14 +85,14 @@ it('opens the desktop sidebar without blocking content and uses a modal menu on 
   expect(mobile.backgroundInert).toBe(true);
 });
 
-it('keeps keyboard focus within the sidebar after removing its account controls', () => {
+it('keeps keyboard focus within the sidebar when tabbing past the last menu', () => {
   const close = { focus: vi.fn() };
   const link = { focus: vi.fn() };
   vi.stubGlobal('document', { activeElement: link });
   const app = createMasterData();
   app.isCompact = true;
   app.sidebarOpen = true;
-  app.$refs = { sidebarClose: close, catalogLink: link };
+  app.$refs = { sidebarClose: close, lastSidebarLink: link };
   const event = { shiftKey: false, preventDefault: vi.fn() };
   app.handleSidebarTab(event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
@@ -363,4 +363,65 @@ it('shows error toast when detail validation or saving fails', async () => {
   await app.saveDetail();
   expect(app.imageToastType).toBe('error');
   expect(app.imageToast).toBe('บันทึกข้อมูลบางส่วนไม่สำเร็จ กรุณาตรวจสอบ');
+});
+
+it('saves pasted product image URLs, restores URL drafts across reload, and validates 200-byte limit', async () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
+  const storage = new Map();
+  vi.stubGlobal('sessionStorage', { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) });
+  const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+    ok: true,
+    path: 'https://cdn.example.com/products/tile.webp',
+    imageUrl: 'https://cdn.example.com/products/tile.webp',
+    sourceType: 'url',
+  })));
+  vi.stubGlobal('fetch', fetch);
+
+  const first = createMasterData();
+  first.user = { username: 'demo' };
+  first.csrf = 'token';
+  first.detailOpen = true;
+  first.selectedProduct = { id: 'P1', code: 'P1', price: '10.00' };
+  first.productImageConfig = { uploadEnabled: true, allowedImageHosts: ['cdn.example.com'], maxImageUrlLength: 200, slotMaxLengths: { '1': 200, '2': 200 } };
+  first.imageSlots = [
+    { slot: 1, path: null, missing: true, mode: 'upload', originalUrl: '', urlInput: '' },
+    { slot: 2, path: null, missing: true, mode: 'upload', originalUrl: '', urlInput: '' },
+  ];
+  first.startDetailEdit();
+  first.switchImageMode(first.imageSlots[0], 'url');
+  first.setImageUrlInput(first.imageSlots[0], 'https://cdn.example.com/' + 'a'.repeat(190) + '.jpg');
+  expect(first.imageSlots[0].invalid).toBe(true);
+  first.setImageUrlInput(first.imageSlots[0], 'https://cdn.example.com/products/tile.webp');
+  expect(first.imageSlots[0].urlPending).toBe(true);
+  expect(first.imageSlots[0].invalid).toBe(false);
+
+  // Restore draft across refresh
+  const restored = createMasterData();
+  restored.user = { username: 'demo' };
+  restored.csrf = 'token';
+  restored.detailOpen = true;
+  restored.selectedProduct = { id: 'P1', code: 'P1', price: '10.00' };
+  restored.productImageConfig = first.productImageConfig;
+  restored.imageSlots = [
+    { slot: 1, path: null, missing: true, mode: 'upload', originalUrl: '', urlInput: '' },
+    { slot: 2, path: null, missing: true, mode: 'upload', originalUrl: '', urlInput: '' },
+  ];
+  restored.restoreDetailEdit();
+  expect(restored.imageSlots[0]).toMatchObject({ mode: 'url', urlInput: 'https://cdn.example.com/products/tile.webp', urlPending: true });
+
+  await restored.saveDetail();
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+    id: 'P1',
+    slot: 1,
+    expected: null,
+    imageUrl: 'https://cdn.example.com/products/tile.webp',
+  });
+  expect(restored.imageSlots[0]).toMatchObject({
+    sourceType: 'url',
+    imageUrl: 'https://cdn.example.com/products/tile.webp',
+    urlPending: false,
+    missing: false,
+  });
+  expect(restored.editingDetail).toBe(false);
 });

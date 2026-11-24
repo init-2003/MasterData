@@ -145,6 +145,13 @@ it('validates images and preserves the previous image when replacement is invali
         $third = $storage->save('011003.', 2, $source, 'TILE.webp');
         $thirdPath = $storage->path('011003.', 2, $third);
         expect($third)->toBe('011003%2E/TILE-2.png');
+
+        $jpegSource = $root . '/photo.jpg';
+        imagejpeg($image, $jpegSource);
+        $jpegRelative = $storage->save('011003.', 1, $jpegSource, 'banner.jpeg');
+        $jpegPath = $storage->path('011003.', 1, $jpegRelative);
+        expect($jpegRelative)->toBe('011003%2E/banner.jpeg')
+            ->and($storage->filenameMediaType('banner.jpeg'))->toBe('image/jpeg');
         $original = file_get_contents($path);
         expect($original)->not->toBeFalse();
         expect(fn () => $storage->save('011003.', 1, $bad, 'bad.png'))->toThrow(InvalidArgumentException::class);
@@ -155,6 +162,8 @@ it('validates images and preserves the previous image when replacement is invali
         if (isset($path) && is_file($path)) unlink($path);
         if (isset($secondPath) && is_file($secondPath)) unlink($secondPath);
         if (isset($thirdPath) && is_file($thirdPath)) unlink($thirdPath);
+        if (isset($jpegPath) && is_file($jpegPath)) unlink($jpegPath);
+        if (isset($jpegSource) && is_file($jpegSource)) unlink($jpegSource);
         if (is_file($root . '/var/demo/product-images/011003%2E/.upload.lock')) unlink($root . '/var/demo/product-images/011003%2E/.upload.lock');
         if (is_dir($root . '/var/demo/product-images/011003%2E')) rmdir($root . '/var/demo/product-images/011003%2E');
         if (is_dir($root . '/var/demo/product-images')) rmdir($root . '/var/demo/product-images');

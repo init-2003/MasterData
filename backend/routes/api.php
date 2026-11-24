@@ -18,5 +18,13 @@ return [
     'update-product-note' => 'POST',
     'update-product-short-note' => 'POST',
     'upload-product-image' => 'POST',
+    'save-product-image-url' => 'POST',
     'delete-product-image' => 'POST',
+    'website-images' => 'GET',
+    'website-image' => 'GET',
+    'public-website-image' => 'GET',
+    'save-website-image' => 'POST',
+    'reorder-website-images' => 'POST',
+    'delete-website-image' => 'POST',
+    'set-website-image-active' => 'POST',
 ];

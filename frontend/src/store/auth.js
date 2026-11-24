@@ -64,7 +64,7 @@ export function createAuth() {
         this.loadProducts(1);
         this.$nextTick(() => {
           if (this.isCompact && this.sidebarOpen) this.$refs.sidebarClose?.focus();
-          else document.getElementById('catalog-heading')?.focus();
+          else (document.getElementById('catalog-heading') ?? document.getElementById('website-images-heading'))?.focus();
         });
       } catch (error) {
         if (error.status === 403) this.csrf = '';

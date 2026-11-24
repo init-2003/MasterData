@@ -25,6 +25,14 @@ $columns = $columnQuery->fetchAll(PDO::FETCH_COLUMN, 1);
 foreach (['image1', 'image2', 'note', 'short_note'] as $column) {
     if (!in_array($column, $columns, true)) $db->exec("ALTER TABLE products ADD COLUMN {$column} TEXT");
 }
+foreach (['Web_Promo_Banner', 'Web_Promo_Sale'] as $websiteTable) {
+    $websiteColumnsQuery = $db->query("PRAGMA table_info({$websiteTable})");
+    if ($websiteColumnsQuery === false) throw new RuntimeException("Unable to inspect demo {$websiteTable}");
+    $websiteColumns = $websiteColumnsQuery->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array('Link_Url', $websiteColumns, true)) {
+        $db->exec("ALTER TABLE {$websiteTable} ADD COLUMN Link_Url TEXT");
+    }
+}
 $products = [
     ['กระเบื้องพอร์ซเลน ลายหิน 60 × 60 ซม.', 'กระเบื้อง', 'กล่อง', '329.00'],
     ['กาวซีเมนต์ปูกระเบื้อง 20 กก.', 'วัสดุก่อสร้าง', 'ถุง', '245.00'],

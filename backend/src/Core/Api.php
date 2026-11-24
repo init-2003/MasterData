@@ -7,6 +7,7 @@ namespace Sptc\MasterData\Core;
 use Sptc\MasterData\Services\Session;
 use Sptc\MasterData\Controllers\AuthController;
 use Sptc\MasterData\Controllers\ProductController;
+use Sptc\MasterData\Controllers\WebsiteImageController;
 use Sptc\MasterData\Middleware\Csrf;
 
 final readonly class Api
@@ -18,7 +19,7 @@ final readonly class Api
     public function dispatch(): never
     {
         $method = $_SERVER['REQUEST_METHOD'] ?? '';
-        $action = $_GET['action'] ?? (isset($_GET['path']) ? 'product-image-by-path' : 'session');
+        $action = $_GET['action'] ?? (isset($_GET['path']) ? 'product-image-by-path' : (isset($_GET['website-image']) ? 'public-website-image' : 'session'));
         $routes = require dirname(__DIR__, 2) . '/routes/api.php';
         $requiredMethod = is_string($action) ? ($routes[$action] ?? null) : null;
         if ($requiredMethod === null) {
@@ -29,6 +30,7 @@ final readonly class Api
             self::fail(405, 'method_not_allowed');
         }
         if ($action === 'product-image-by-path') ProductController::imageByPath($this->config);
+        if ($action === 'public-website-image') WebsiteImageController::publicImage($this->config);
         $session = new Session($this->config);
         if ($requiredMethod === 'POST') {
             Csrf::verify($session);
@@ -49,7 +51,14 @@ final readonly class Api
             'product-image' => (new ProductController($this->config, $session))->productImage(),
             'product-images' => (new ProductController($this->config, $session))->productImages(),
             'upload-product-image' => (new ProductController($this->config, $session))->uploadProductImage(),
+            'save-product-image-url' => (new ProductController($this->config, $session))->saveProductImageUrl(),
             'delete-product-image' => (new ProductController($this->config, $session))->deleteProductImage(),
+            'website-images' => (new WebsiteImageController($this->config, $session))->items(),
+            'website-image' => (new WebsiteImageController($this->config, $session))->image(),
+            'save-website-image' => (new WebsiteImageController($this->config, $session))->save(),
+            'reorder-website-images' => (new WebsiteImageController($this->config, $session))->reorder(),
+            'delete-website-image' => (new WebsiteImageController($this->config, $session))->delete(),
+            'set-website-image-active' => (new WebsiteImageController($this->config, $session))->setActive(),
             default => self::fail(404, 'not_found'),
         };
     }

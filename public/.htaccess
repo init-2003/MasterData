@@ -1,3 +1,9 @@
 Require all granted
 Options -Indexes
 DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^website-images/([a-z0-9-]+)/([^/]+)$ api.php?website-image=$1/$2 [L,QSA,B]
+    RewriteRule ^product-images/([^/]+)/([^/]+)$ api.php?path=$1/$2 [L,QSA,B]
+</IfModule>

@@ -2,6 +2,7 @@ import { createAuth } from './auth.js';
 import { createProduct } from './product/product.js';
 import { createToast } from './toast.js';
 import { loginMessage } from '../services/api.js';
+import { readActivePage } from '../routes/website-image-menus.js';
 
 export function createMasterData() {
   const compactNavigation = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 900px)') : null;
@@ -34,7 +35,7 @@ export function createMasterData() {
       } finally {
         this.booting = false;
       }
-      if (this.user) this.restoreProduct();
+      if (this.user && readActivePage(this.user.username) === 'products') this.restoreProduct();
       if (this.user && this.isCompact && this.sidebarOpen) this.$nextTick(() => { if (!this.detailOpen) this.$refs.sidebarClose?.focus(); });
     },
 
@@ -61,7 +62,7 @@ export function createMasterData() {
     handleSidebarTab(event) {
       if (!this.sidebarOpen || !this.isCompact) return;
       const first = this.$refs.sidebarClose;
-      const last = this.$refs.catalogLink;
+      const last = this.$refs.lastSidebarLink;
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();

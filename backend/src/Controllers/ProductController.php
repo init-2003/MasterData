@@ -10,6 +10,8 @@ use Sptc\MasterData\Core\Database;
 use Sptc\MasterData\Core\Api;
 use Sptc\MasterData\Models\ProductRepository;
 use Sptc\MasterData\Services\ProductImage;
+use Sptc\MasterData\Services\ProductImageUrl;
+use Sptc\MasterData\Services\WebsiteImageUrl;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Validation;
 
@@ -126,12 +128,23 @@ final readonly class ProductController
         $state = $repo->imageState($id);
         if ($state === null) Api::fail(404, 'product_not_found');
         $storage = new ProductImage($this->config);
-        $relative = $state['image' . $slot];
+        $urls = new ProductImageUrl($this->config, $storage);
+        $stored = $state['image' . $slot];
+        $described = $urls->describe($state['code'], $stored);
+        if ($described['sourceType'] === 'url') {
+            if ($described['previewUrl'] === null) Api::fail(404, 'image_not_found');
+            header('Referrer-Policy: no-referrer');
+            header('Location: ' . $described['previewUrl'], true, 302);
+            exit;
+        }
         try {
-            $path = $relative === null && $slot === '1' ? $storage->legacyPath($id) : ($relative === null ? '' : $storage->path($state['code'], (int) $slot, $relative));
+            $path = $described['managedRelative'] !== null
+                ? $storage->path($state['code'], (int) $slot, $described['managedRelative'])
+                : ($stored === null && $slot === '1' ? $storage->legacyPath($id) : '');
         } catch (\InvalidArgumentException) { Api::fail(404, 'image_not_found'); }
         if ($path === '' || is_link($path) || !is_file($path)) Api::fail(404, 'image_not_found');
-        header('Content-Type: image/png');
+        $mime = $storage->filenameMediaType(basename($path)) ?? 'image/png';
+        header('Content-Type: ' . $mime);
         header('Content-Disposition: inline');
         readfile($path);
         exit;
@@ -141,14 +154,17 @@ final readonly class ProductController
     {
         $relative = $_GET['path'] ?? null;
         if (!is_string($relative) || $relative === '' || strlen($relative) > 200 || !mb_check_encoding($relative, 'UTF-8')) Api::fail(422, 'invalid_input');
+        $storage = new ProductImage($config);
+        $urls = new ProductImageUrl($config, $storage);
         $repo = new ProductRepository(Database::connect($config), $config);
-        $reference = $repo->findImagePath($relative);
+        $reference = $repo->findImagePath($relative, $urls->lookupCandidates($relative));
         if ($reference === null) Api::fail(404, 'image_not_found');
         try {
-            $file = (new ProductImage($config))->path($reference['code'], $reference['slot'], $relative);
+            $file = $storage->path($reference['code'], $reference['slot'], $relative);
         } catch (\InvalidArgumentException) { Api::fail(404, 'image_not_found'); }
         if (is_link($file) || !is_file($file)) Api::fail(404, 'image_not_found');
-        header('Content-Type: image/png');
+        $mime = $storage->filenameMediaType(basename($file)) ?? 'image/png';
+        header('Content-Type: ' . $mime);
         header('Content-Disposition: inline');
         readfile($file);
         exit;
@@ -160,13 +176,39 @@ final readonly class ProductController
         $id = $_GET['id'] ?? null;
         if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128) Api::fail(422, 'invalid_input');
         session_write_close();
-        $state = (new ProductRepository(Database::connect($this->config), $this->config))->imageState($id);
+        $repo = new ProductRepository(Database::connect($this->config), $this->config);
+        $state = $repo->imageState($id);
         if ($state === null) Api::fail(404, 'product_not_found');
-        $legacy = (new ProductImage($this->config))->legacyPath($id);
-        Api::respond(['images' => [
-            ['slot' => 1, 'path' => $state['image1'], 'exists' => $state['image1'] !== null || (!is_link($legacy) && is_file($legacy))],
-            ['slot' => 2, 'path' => $state['image2'], 'exists' => $state['image2'] !== null],
-        ]]);
+        $storage = new ProductImage($this->config);
+        $urls = new ProductImageUrl($this->config, $storage);
+        $legacy = $storage->legacyPath($id);
+        $hasLegacySlot1 = !is_link($legacy) && is_file($legacy);
+        $slot1Spec = $repo->imageColumnSpec(1);
+        $slot2Spec = $repo->imageColumnSpec(2);
+        $images = [];
+        foreach ([1, 2] as $slot) {
+            $stored = $state['image' . $slot];
+            $described = $urls->describe($state['code'], $stored);
+            $exists = $stored !== null || ($slot === 1 && $hasLegacySlot1);
+            $sourceType = $described['sourceType'] ?? ($slot === 1 && $hasLegacySlot1 ? 'legacy' : null);
+            $images[] = [
+                'slot' => $slot,
+                'path' => $stored,
+                'exists' => $exists,
+                'sourceType' => $sourceType,
+                'imageUrl' => $described['imageUrl'],
+                'preview' => $described['sourceType'] === 'url' ? $described['previewUrl'] : null,
+            ];
+        }
+        Api::respond([
+            'images' => $images,
+            'config' => [
+                'uploadEnabled' => $urls->publicImageBase() !== null,
+                'allowedImageHosts' => $urls->allowedHosts(),
+                'maxImageUrlLength' => min($slot1Spec['maxLength'], $slot2Spec['maxLength']),
+                'slotMaxLengths' => ['1' => $slot1Spec['maxLength'], '2' => $slot2Spec['maxLength']],
+            ],
+        ]);
     }
 
     public function deleteProductImage(): never
@@ -180,13 +222,14 @@ final readonly class ProductController
         $id = $body['id'] ?? null;
         $slot = $body['slot'] ?? null;
         $expected = $body['expected'];
-        if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128 || !in_array($slot, [1, 2], true) || ($expected !== null && (!is_string($expected) || $expected === '' || strlen($expected) > 200))) Api::fail(422, 'invalid_input');
+        if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128 || !in_array($slot, [1, 2], true) || ($expected !== null && (!is_string($expected) || $expected === '' || strlen($expected) > ProductRepository::MAX_URL_CAP))) Api::fail(422, 'invalid_input');
         session_write_close();
         $db = Database::connect($this->config);
         $repo = new ProductRepository($db, $this->config);
         $state = $repo->imageState($id);
         if ($state === null) Api::fail(404, 'product_not_found');
         $storage = new ProductImage($this->config);
+        $urls = new ProductImageUrl($this->config, $storage);
         $db->beginTransaction();
         try {
             if (!$repo->updateImage($id, $state['code'], $slot, $expected, null)) {
@@ -198,17 +241,78 @@ final readonly class ProductController
             if ($db->inTransaction()) $db->rollBack();
             throw $error;
         }
-        if ($expected !== null && $repo->findImagePath($expected) === null) {
-            try {
-                $path = $storage->path($state['code'], $slot, $expected);
-                if (!is_link($path) && is_file($path)) @unlink($path);
-            } catch (\InvalidArgumentException) { /* Keep files outside this product's image directory. */ }
+        if ($expected !== null) {
+            $oldRelative = $urls->parseManagedRelative($state['code'], $expected);
+            if ($oldRelative !== null && $repo->findImagePath($oldRelative, $urls->lookupCandidates($oldRelative)) === null) {
+                try {
+                    $path = $storage->path($state['code'], $slot, $oldRelative);
+                    if (!is_link($path) && is_file($path)) @unlink($path);
+                } catch (\InvalidArgumentException) { /* Keep files outside this product's image directory. */ }
+            }
         }
         if ($slot === 1) {
             $legacy = $storage->legacyPath($id);
             if (!is_link($legacy) && is_file($legacy)) @unlink($legacy);
         }
         Api::respond(['ok' => true]);
+    }
+
+    public function saveProductImageUrl(): never
+    {
+        if ($this->session->user() === null) Api::fail(401, 'login_required');
+        if (strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') Api::fail(415, 'invalid_content_type');
+        $raw = file_get_contents('php://input', length: 8193);
+        if ($raw === false || strlen($raw) > 8192) Api::fail(413, 'invalid_input');
+        $body = json_decode($raw, true, 8);
+        if (!is_array($body) || array_diff(array_keys($body), ['id', 'slot', 'expected', 'imageUrl']) !== [] || !array_key_exists('expected', $body)) Api::fail(422, 'invalid_input');
+        $id = $body['id'] ?? null;
+        $slot = $body['slot'] ?? null;
+        $expected = $body['expected'];
+        $imageUrl = $body['imageUrl'] ?? null;
+        if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128
+            || !in_array($slot, [1, 2], true)
+            || !is_string($imageUrl)
+            || ($expected !== null && (!is_string($expected) || $expected === '' || strlen($expected) > ProductRepository::MAX_URL_CAP))) {
+            Api::fail(422, 'invalid_input');
+        }
+        session_write_close();
+        $db = Database::connect($this->config);
+        $repo = new ProductRepository($db, $this->config);
+        $state = $repo->imageState($id);
+        if ($state === null) Api::fail(404, 'product_not_found');
+        $storage = new ProductImage($this->config);
+        $urls = new ProductImageUrl($this->config, $storage);
+        $columnSpec = $repo->imageColumnSpec($slot);
+        $validation = $urls->validateExternalUrl($imageUrl, $columnSpec['maxLength'], $columnSpec['utf16']);
+        if ($validation['error'] !== null) Api::fail(422, $validation['error']);
+        $validatedUrl = $validation['url'];
+        $db->beginTransaction();
+        try {
+            if (!$repo->updateImage($id, $state['code'], $slot, $expected, $validatedUrl)) {
+                $db->rollBack();
+                Api::fail(409, 'image_changed');
+            }
+            $stored = $repo->imageState($id);
+            if ($stored === null || $stored['code'] !== $state['code'] || $stored['image' . $slot] !== $validatedUrl) {
+                throw new \RuntimeException('Image URL could not be stored exactly');
+            }
+            $db->commit();
+        } catch (\Throwable $error) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $error;
+        }
+        if ($expected !== null) {
+            $oldRelative = $urls->parseManagedRelative($state['code'], $expected);
+            $otherSlot = $slot === 1 ? 'image2' : 'image1';
+            $otherRelative = $stored[$otherSlot] === null ? null : $urls->parseManagedRelative($state['code'], $stored[$otherSlot]);
+            if ($oldRelative !== null && $oldRelative !== $otherRelative) {
+                try {
+                    $oldPath = $storage->path($state['code'], $slot, $oldRelative);
+                    if (!is_link($oldPath) && is_file($oldPath)) @unlink($oldPath);
+                } catch (\InvalidArgumentException) { /* Never delete files outside this product's image directory. */ }
+            }
+        }
+        Api::respond(['ok' => true, 'path' => $validatedUrl, 'imageUrl' => $validatedUrl, 'sourceType' => 'url']);
     }
 
     public function uploadProductImage(): never
@@ -218,7 +322,7 @@ final readonly class ProductController
         $slot = $_POST['slot'] ?? '1';
         $expected = $_POST['expected'] ?? '';
         $file = $_FILES['image'] ?? null;
-        if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128 || !in_array($slot, ['1', '2'], true) || !is_string($expected) || strlen($expected) > 200 || !is_array($file)) Api::fail(422, 'invalid_input');
+        if (!is_string($id) || $id === '' || !mb_check_encoding($id, 'UTF-8') || mb_strlen($id) > 128 || !in_array($slot, ['1', '2'], true) || !is_string($expected) || strlen($expected) > ProductRepository::MAX_URL_CAP || !is_array($file)) Api::fail(422, 'invalid_input');
         $error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
         if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) Api::fail(413, 'image_too_large');
         $tmp = $file['tmp_name'] ?? null;
@@ -230,22 +334,30 @@ final readonly class ProductController
         $state = $repo->imageState($id);
         if ($state === null) Api::fail(404, 'product_not_found');
         $storage = new ProductImage($this->config);
+        $urls = new ProductImageUrl($this->config, $storage);
+        if ($urls->publicImageBase() === null) Api::fail(400, 'public_url_not_configured');
         try {
             $relative = $storage->save($state['code'], (int) $slot, $tmp, $name);
-        } catch (\InvalidArgumentException) {
-            Api::fail(422, 'invalid_image');
+        } catch (\InvalidArgumentException $saveError) {
+            Api::fail(422, $saveError->getMessage() === 'Image path is too long' ? 'image_url_too_long' : 'invalid_image');
         }
         $newPath = $storage->path($state['code'], (int) $slot, $relative);
+        $fullUrl = $urls->managedPublicUrl($relative);
+        $columnSpec = $repo->imageColumnSpec((int) $slot);
+        if ($fullUrl === null || !WebsiteImageUrl::fitsLength($fullUrl, $columnSpec['maxLength'], $columnSpec['utf16'])) {
+            @unlink($newPath);
+            Api::fail(422, 'image_url_too_long');
+        }
         $commitAttempted = false;
         try {
             $db->beginTransaction();
-            if (!$repo->updateImage($id, $state['code'], (int) $slot, $expected === '' ? null : $expected, $relative)) {
+            if (!$repo->updateImage($id, $state['code'], (int) $slot, $expected === '' ? null : $expected, $fullUrl)) {
                 $db->rollBack();
                 @unlink($newPath);
                 Api::fail(409, 'image_changed');
             }
             $stored = $repo->imageState($id);
-            if ($stored === null || $stored['code'] !== $state['code'] || $stored['image' . $slot] !== $relative) throw new \RuntimeException('Image path could not be stored exactly');
+            if ($stored === null || $stored['code'] !== $state['code'] || $stored['image' . $slot] !== $fullUrl) throw new \RuntimeException('Image URL could not be stored exactly');
             $commitAttempted = true;
             $db->commit();
         } catch (\Throwable $error) {
@@ -254,14 +366,15 @@ final readonly class ProductController
             throw $error;
         }
         $otherSlot = $slot === '1' ? 'image2' : 'image1';
-        $otherPath = $stored[$otherSlot] ?? null;
-        if ($expected !== '' && $expected !== $relative && ($otherPath === null || ProductImage::shortPath($otherPath) !== ProductImage::shortPath($expected))) {
+        $otherRelative = $stored[$otherSlot] === null ? null : $urls->parseManagedRelative($state['code'], $stored[$otherSlot]);
+        $oldRelative = $expected === '' ? null : $urls->parseManagedRelative($state['code'], $expected);
+        if ($oldRelative !== null && $oldRelative !== $relative && $oldRelative !== $otherRelative) {
             try {
-                $oldPath = $storage->path($state['code'], (int) $slot, $expected);
+                $oldPath = $storage->path($state['code'], (int) $slot, $oldRelative);
                 if (!is_link($oldPath) && is_file($oldPath)) @unlink($oldPath);
             } catch (\InvalidArgumentException) { /* Never delete files outside this product's image directory. */ }
         }
-        Api::respond(['ok' => true, 'path' => $relative]);
+        Api::respond(['ok' => true, 'path' => $fullUrl, 'imageUrl' => $fullUrl, 'sourceType' => 'upload']);
     }
 
 }
