@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createMasterData } from '../../admin/src/store/master-data.js';
+import { createAppModel } from '../../admin/src/store/app-model.js';
 import { createAppStore } from '../../admin/src/store/store.js';
 import { createAuth } from '../../admin/src/store/auth.js';
 
@@ -15,7 +15,7 @@ afterEach(() => vi.unstubAllGlobals());
 it('restarts the toast timeout on repeated notifications and supports dismissal', () => {
   vi.useFakeTimers();
   try {
-    const app = createMasterData();
+    const app = createAppModel();
     app.showImageToast('คัดลอกแล้ว');
     vi.advanceTimersByTime(3000);
     app.showImageToast('คัดลอกแล้ว');
@@ -53,23 +53,23 @@ it('restores sidebar visibility per viewport after refresh', () => {
   const data = new Map();
   vi.stubGlobal('sessionStorage', { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) });
   vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
-  const desktop = createMasterData();
+  const desktop = createAppModel();
   desktop.$nextTick = () => {};
   desktop.toggleSidebar();
-  expect(createMasterData().sidebarOpen).toBe(false);
+  expect(createAppModel().sidebarOpen).toBe(false);
   vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
-  const mobile = createMasterData();
+  const mobile = createAppModel();
   expect(mobile.sidebarOpen).toBe(false);
   mobile.$nextTick = () => {};
   mobile.toggleSidebar();
-  expect(createMasterData().sidebarOpen).toBe(true);
+  expect(createAppModel().sidebarOpen).toBe(true);
   vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
-  expect(createMasterData().sidebarOpen).toBe(false);
+  expect(createAppModel().sidebarOpen).toBe(false);
 });
 
 it('opens the desktop sidebar without blocking content and uses a modal menu on mobile', () => {
   vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
-  const desktop = createMasterData();
+  const desktop = createAppModel();
   expect(desktop.sidebarOpen).toBe(true);
   expect(desktop.backgroundInert).toBe(false);
   expect(desktop.sidebarRole).toBeNull();
@@ -77,7 +77,7 @@ it('opens the desktop sidebar without blocking content and uses a modal menu on 
   desktop.toggleSidebar();
   expect(desktop.sidebarOpen).toBe(false);
   vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
-  const mobile = createMasterData();
+  const mobile = createAppModel();
   expect(mobile.sidebarOpen).toBe(false);
   mobile.$nextTick = () => {};
   mobile.toggleSidebar();
@@ -89,7 +89,7 @@ it('keeps keyboard focus within the sidebar when tabbing past the last menu', ()
   const close = { focus: vi.fn() };
   const link = { focus: vi.fn() };
   vi.stubGlobal('document', { activeElement: link });
-  const app = createMasterData();
+  const app = createAppModel();
   app.isCompact = true;
   app.sidebarOpen = true;
   app.$refs = { sidebarClose: close, lastSidebarLink: link };
@@ -103,7 +103,7 @@ it('restores edit fields and staged image deletion with their original conflict 
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   const storage = new Map();
   vi.stubGlobal('sessionStorage', { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) });
-  const first = createMasterData();
+  const first = createAppModel();
   first.user = { username: 'demo' };
   first.detailOpen = true;
   first.selectedProduct = { id: 'P1', price: '12.00' };
@@ -113,7 +113,7 @@ it('restores edit fields and staged image deletion with their original conflict 
   first.priceInput = '15.00'; first.noteInput = 'ใหม่'; first.shortNoteInput = 'ย่อใหม่';
   first.stageImageDelete(first.imageSlots[0]);
 
-  const restored = createMasterData();
+  const restored = createAppModel();
   restored.user = { username: 'demo' };
   restored.detailOpen = true;
   restored.selectedProduct = { id: 'P1', price: '13.00' };
@@ -130,7 +130,7 @@ it('combines authentication and product state without freezing reactive getters'
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [], page: 1, pageSize: 15, total: 0, totalPages: 1 })));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.booting = false;
   expect(app.showLogin).toBe(true);
   app.applySession({ user: { username: 'demo' }, csrf: 'token', demo: true });
@@ -171,7 +171,7 @@ it('loads and saves a short note with the original value for conflict detection'
     .mockResolvedValueOnce(new Response(JSON.stringify({ note: 'เดิม' })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true })));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.selectedProduct = { id: 'P1' };
   app.csrf = 'token';
   await app.loadShortNote();
@@ -192,7 +192,7 @@ it('saves both selected images and retains a failed image for retry', async () =
     .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'failed' }), { status: 500 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({ path: 'P1/two.png' })));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.selectedProduct = { id: 'P1' };
   app.csrf = 'token';
   app.imageSlots = [{ slot: 1, path: null, missing: true }, { slot: 2, path: null, missing: true }];
@@ -214,7 +214,7 @@ it('saves both selected images and retains a failed image for retry', async () =
 it('validates dropped images and allows cancelling a selected file', () => {
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   vi.stubGlobal('FileReader', class { readAsDataURL() { this.result = 'data:image/png;base64,AA'; this.onload(); } });
-  const app = createMasterData();
+  const app = createAppModel();
   const image = { slot: 1, path: null, missing: true };
   app.imageSlots = [image];
   app.selectImageFile(new File(['bad'], 'bad.txt', { type: 'text/plain' }), image);
@@ -236,7 +236,7 @@ it('restores an open product using fresh data for the same user', async () => {
   const fresh = { id: 'P1', code: 'P1', name: 'ชื่อใหม่', price: '12.00' };
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [fresh], totalPages: 1 })));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.user = { username: 'demo' };
   app.$nextTick = () => {};
   app.loadImages = vi.fn();
@@ -252,14 +252,14 @@ it('restores a pending image after reload and removes it on cancellation', async
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   vi.stubGlobal('sessionStorage', { getItem: () => 'tab-1', setItem: vi.fn(), removeItem: vi.fn() });
   vi.stubGlobal('FileReader', class { readAsDataURL() { this.result = 'data:image/png;base64,AA'; this.onload(); } });
-  const first = createMasterData();
+  const first = createAppModel();
   first.user = { username: 'demo' };
   first.selectedProduct = { id: 'P1' };
   first.detailOpen = true;
   first.imageSlots = [{ slot: 1, path: 'old.png', missing: false }];
   first.selectImageFile(new File(['test'], 'new.png', { type: 'image/png' }), first.imageSlots[0]);
   await vi.waitFor(() => expect(first.imageDraftSaving).toBe(0));
-  const refreshed = createMasterData();
+  const refreshed = createAppModel();
   refreshed.user = { username: 'demo' };
   refreshed.selectedProduct = { id: 'P1' };
   refreshed.detailOpen = true;
@@ -277,7 +277,7 @@ it('saves changed fields together and retains failed changes for retry', async (
     .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'note_changed' }), { status: 409 }));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.selectedProduct = { id: 'P1', price: '10.00' };
   app.csrf = 'token';
   app.note = 'เดิม';
@@ -301,7 +301,7 @@ it('stages image deletion until saving and rejects invalid price before requests
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.selectedProduct = { id: 'P1', price: '10.00' };
   app.imageSlots = [{ slot: 1, path: 'P1/one.png', missing: false }];
   app.startDetailEdit();
@@ -327,7 +327,7 @@ it('shows error and success toasts for login, logout, and session expiration', a
     .mockResolvedValueOnce(new Response(JSON.stringify({ user: null, csrf: 'logged-out', demo: false })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   Object.assign(app, { csrf: 'token', username: 'operator', password: 'wrong', loadTypes() {}, loadUnits() {}, loadProducts: vi.fn(), $nextTick() {} });
   await app.signIn();
   expect(app.imageToastType).toBe('error');
@@ -339,7 +339,7 @@ it('shows error and success toasts for login, logout, and session expiration', a
   await app.signOut();
   expect(app.imageToastType).toBe('success');
   expect(app.imageToast).toBe('ออกจากระบบแล้ว');
-  const sessionApp = createMasterData();
+  const sessionApp = createAppModel();
   sessionApp.user = { username: 'operator' };
   await sessionApp.loadProducts(1);
   expect(sessionApp.user).toBeNull();
@@ -351,7 +351,7 @@ it('shows error toast when detail validation or saving fails', async () => {
   vi.stubGlobal('window', { matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) });
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'failed' }), { status: 500 }));
   vi.stubGlobal('fetch', fetch);
-  const app = createMasterData();
+  const app = createAppModel();
   app.selectedProduct = { id: 'P1', price: '10.00' };
   app.csrf = 'token';
   app.startDetailEdit();
@@ -362,6 +362,16 @@ it('shows error toast when detail validation or saving fails', async () => {
   app.priceInput = '12.00';
   await app.saveDetail();
   expect(app.imageToastType).toBe('error');
+  // Nothing was saved, so the toast must not claim a partial failure.
+  expect(app.imageToast).toBe('บันทึกข้อมูลสินค้าไม่สำเร็จ กรุณาตรวจสอบ');
+  expect(app.imageToastAnnounce).toBe(false);
+
+  // The price saves but the note fails: that is a partial failure.
+  fetch.mockImplementation(async (url) => String(url).includes('update-product-note')
+    ? new Response(JSON.stringify({ error: 'failed' }), { status: 500 })
+    : new Response(JSON.stringify({ items: [], total: 0, page: 1, totalPages: 1 })));
+  app.noteInput = 'คำอธิบายใหม่';
+  await app.saveDetail();
   expect(app.imageToast).toBe('บันทึกข้อมูลบางส่วนไม่สำเร็จ กรุณาตรวจสอบ');
 });
 
@@ -377,7 +387,7 @@ it('saves pasted product image URLs, restores URL drafts across reload, and vali
   })));
   vi.stubGlobal('fetch', fetch);
 
-  const first = createMasterData();
+  const first = createAppModel();
   first.user = { username: 'demo' };
   first.csrf = 'token';
   first.detailOpen = true;
@@ -396,7 +406,7 @@ it('saves pasted product image URLs, restores URL drafts across reload, and vali
   expect(first.imageSlots[0].invalid).toBe(false);
 
   // Restore draft across refresh
-  const restored = createMasterData();
+  const restored = createAppModel();
   restored.user = { username: 'demo' };
   restored.csrf = 'token';
   restored.detailOpen = true;

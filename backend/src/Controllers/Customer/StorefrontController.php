@@ -32,12 +32,12 @@ final readonly class StorefrontController
     }
 
     /**
-     * @param key-of<WebsiteImageRepository::TABLES> $collection
+     * @param key-of<WebsiteImageRepository::COLLECTIONS> $collection
      * @return list<array{id: string, title: string, position: int, imageUrl: string|null}>
      */
     private function collectionItems(\PDO $db, WebsiteImageUrl $urls, string $collection): array
     {
-        $repo = new WebsiteImageRepository($db, $this->config->demo(), $collection);
+        $repo = WebsiteImageRepository::for($db, $this->config->demo(), $collection);
         $result = [];
         foreach ($repo->activeItems() as $item) {
             $described = $urls->describe($collection, $item['path'], $item['linkUrl']);

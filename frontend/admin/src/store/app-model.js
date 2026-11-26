@@ -4,7 +4,7 @@ import { createToast } from './toast.js';
 import { loginMessage } from '../services/api.js';
 import { readActivePage } from '../routes/website-image-menus.js';
 
-export function createMasterData() {
+export function createAppModel() {
   const compactNavigation = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 900px)') : null;
   const sidebarKey = (compact) => `sptc.sidebar.${compact ? 'mobile' : 'desktop'}`;
   const savedSidebar = (compact) => {

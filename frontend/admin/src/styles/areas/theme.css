@@ -1,0 +1,65 @@
+/* Colour, size and font tokens. Colours are declared once as light-dark(light, dark). */
+:root {
+  --ui-radius: .5rem;
+}
+:root {
+  color-scheme: light dark;
+  --surface: light-dark(#ffffff, #161d26);
+  --surface-page: light-dark(#f6f7f9, #0f141a);
+  --surface-subtle: light-dark(#f9f9fa, #121922);
+  --surface-faint: light-dark(#f8faff, #131c28);
+  --surface-hover: light-dark(#e1e6ee, #2e3947);
+  --surface-badge: light-dark(#e8edf5, #2a3441);
+  --surface-tint: light-dark(#eaf0fd, #18304f);
+  --surface-tint-strong: light-dark(#dbe7ff, #22436b);
+  --surface-row-hover: light-dark(#f5f8ff, #1c2735);
+  --success-bg: light-dark(#ecfdf5, #0f2e22);
+  --success-bg-strong: light-dark(#d1fae5, #174533);
+  --danger-bg: light-dark(#fef2f2, #3a1b20);
+  --danger-bg-strong: light-dark(#fee2e2, #52242b);
+  --warning-bg: light-dark(#fef3c7, #3a2e0c);
+  --dataset-bg: light-dark(#ffecbc, #43320c);
+  --danger-solid: light-dark(#b91c1c, #c53030);
+  --danger-solid-hover: light-dark(#991b1b, #a12727);
+  --neutral-solid: light-dark(#6b7280, #566274);
+  --neutral-solid-hover: light-dark(#4b5563, #66748a);
+  --switch-off: light-dark(#64748b, #5d6b7e);
+  --warning-dot: light-dark(#965604, #e8ac45);
+  --line-strong: light-dark(#cbd5e1, #4a586a);
+  --line-divider: light-dark(#d1d5db, #3a4756);
+  --line-info: light-dark(#93c5fd, #3f6ea8);
+  --line-success: light-dark(#a7e2c6, #216b4d);
+  --line-danger: light-dark(#fecaca, #80343c);
+  --text-body: light-dark(#374151, #cbd3dd);
+  --text-secondary: light-dark(#4b5563, #aab4c0);
+  --text-faint: light-dark(#64748b, #98a4b3);
+  --text-link: light-dark(#1d44b0, #8ab8ff);
+  --text-success: light-dark(#047857, #6bd8ab);
+  --text-danger: light-dark(#a51c1c, #ff9d94);
+  --text-warning: light-dark(#704600, #f3c775);
+  --action-text: light-dark(#245ada, #7cb0ff);
+  --backdrop: light-dark(rgb(17 24 39 / .48), rgb(0 0 0 / .62));
+  --hover-shade: light-dark(rgb(0 0 0 / .06), rgb(255 255 255 / .1));
+  --nav-button-bg: light-dark(rgb(255 255 255 / .92), rgb(22 29 38 / .92));
+  --logo-tile: light-dark(transparent, #ffffff);
+}
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+
+@theme {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', 'Leelawadee UI', Tahoma, sans-serif;
+  --color-ink: light-dark(#111827, #e6e9ef);
+  --color-brand: #3b82f6;
+  --color-action: light-dark(#245ada, #2f6fed);
+  --color-action-hover: light-dark(#1948bb, #2459c9);
+  --color-blue-surface: light-dark(#eaf1ff, #1a2e49);
+  --color-navy: light-dark(#142c63, #c9d9ff);
+  --color-mint: #10b981;
+  --color-amber: #f59e0b;
+  --color-canvas: light-dark(#f3f4f6, #232c38);
+  --color-hairline: light-dark(#e5e7eb, #2b3644);
+}
+:root { --color-border: light-dark(#d5dbe1, #33404f); --color-input-border: #7d8998; --container-radius: .75rem; --control-height: 2.25rem; --control-radius: .5rem; }
+@media (max-width: 900px) {
+  :root { --control-height: 2.75rem; }
+}

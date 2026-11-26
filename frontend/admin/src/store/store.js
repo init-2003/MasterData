@@ -1,8 +1,8 @@
-import { createMasterData } from './master-data.js';
+import { createAppModel } from './app-model.js';
 
 // Existing domain actions remain independent of the view; React observes their mutations.
 export function createAppStore() {
-  const model = createMasterData();
+  const model = createAppModel();
   model.$refs = Object.create(null);
   model.$nextTick = (callback) => requestAnimationFrame(callback);
   let version = 0;

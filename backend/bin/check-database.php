@@ -50,9 +50,9 @@ try {
         throw new RuntimeException('Unknown account was accepted.');
     }
     fwrite(STDOUT, "System_Access rejected an unknown account.\n");
-    foreach (WebsiteImageRepository::TABLES as $collection => $tableName) {
+    foreach (WebsiteImageRepository::COLLECTIONS as $collection => ['table' => $tableName]) {
         try {
-            $websiteRepo = new WebsiteImageRepository($db, false, $collection);
+            $websiteRepo = WebsiteImageRepository::for($db, false, $collection);
             $spec = $websiteRepo->imageUrlColumnSpec();
             $unit = $spec['utf16'] ? 'UTF-16 chars' : 'bytes';
             fwrite(STDOUT, "Website table dbo.{$tableName}.Image_Url max length: {$spec['maxLength']} ({$unit}).\n");

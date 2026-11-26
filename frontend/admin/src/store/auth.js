@@ -69,7 +69,7 @@ export function createAuth() {
       } catch (error) {
         if (error.status === 403) this.csrf = '';
         this.loginError = loginMessage(error);
-        this.showToast?.(this.loginError, 'error');
+        this.showToast?.(this.loginError, 'error', { announce: false });
       } finally {
         this.loginBusy = false;
       }
@@ -97,7 +97,7 @@ export function createAuth() {
             // The visible error below also covers loss of connectivity.
           }
         }
-        this.showToast?.('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'error');
+        this.showToast?.('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'error', { announce: false });
         dialog.fire({ titleText: 'ออกจากระบบไม่สำเร็จ', text: 'กรุณาลองอีกครั้ง' });
       } finally {
         this.logoutBusy = false;

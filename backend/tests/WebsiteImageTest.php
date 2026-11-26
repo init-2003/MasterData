@@ -142,9 +142,9 @@ it('checks active managed images and enforces per-table URL lengths in WebsiteIm
     expect($schema)->not->toBeFalse();
     $db->exec((string) $schema);
 
-    $bannerRepo = new WebsiteImageRepository($db, true, 'promo-banner');
-    $saleRepo = new WebsiteImageRepository($db, true, 'promo-sale');
-    $carouselRepo = new WebsiteImageRepository($db, true, 'carousel');
+    $bannerRepo = WebsiteImageRepository::for($db, true, 'promo-banner');
+    $saleRepo = WebsiteImageRepository::for($db, true, 'promo-sale');
+    $carouselRepo = WebsiteImageRepository::for($db, true, 'carousel');
 
     expect($bannerRepo->imageUrlColumnSpec())->toBe(['maxLength' => 255, 'utf16' => true])
         ->and($saleRepo->imageUrlColumnSpec())->toBe(['maxLength' => 255, 'utf16' => true])
@@ -205,11 +205,11 @@ it('stores promotion-level images per customer level and keeps ordering within e
         ->and($levels->find('4'))->toBeNull()
         ->and($levels->find(''))->toBeNull();
 
-    $repo = new WebsiteImageRepository($db, true, 'promotion-level');
+    $repo = WebsiteImageRepository::for($db, true, 'promotion-level');
     expect($repo->hasLevel())->toBeTrue()
         ->and($repo->hasLinkUrl())->toBeFalse()
         ->and($repo->imageUrlColumnSpec())->toBe(['maxLength' => 500, 'utf16' => true])
-        ->and((new WebsiteImageRepository($db, true, 'promo-sale'))->hasLevel())->toBeFalse();
+        ->and((WebsiteImageRepository::for($db, true, 'promo-sale'))->hasLevel())->toBeFalse();
 
     $legacy = $repo->items();
     expect(array_column($legacy, 'id'))->toBe(['10', '9', '19'])

@@ -34,7 +34,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
   const [saving, setSaving] = useState(false);
   const [togglePending, setTogglePending] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [saved, setSaved] = useState('');
   const [editingOrder, setEditingOrder] = useState(false);
   const [draftOrder, setDraftOrder] = useState(null);
   const [orderMessage, setOrderMessage] = useState('');
@@ -42,6 +41,7 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
   const orderButton = useRef(null);
   const orderInstructions = useRef(null);
   const saveRequest = useRef(null);
+  const formErrorToast = useRef('');
   const focusAfterRefresh = useRef(null);
 
   useEffect(() => () => saveRequest.current?.abort(), []);
@@ -91,7 +91,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
 
   function changeLevelFilter(nextLevel) {
     setLevelFilter(nextLevel);
-    setSaved('');
     try { sessionStorage.setItem(levelKey, nextLevel); } catch { /* Continue without persistence. */ }
   }
 
@@ -102,14 +101,11 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
   function startOrderEdit() {
     if (saveRequest.current) return;
     setEditingOrder(true);
-    setSaveError('');
-    setSaved('');
   }
 
   function cancelOrderEdit() {
     setEditingOrder(false);
     setDraftOrder(null);
-    setSaveError('');
     if (draftOrder) setOrderMessage('คืนลำดับเดิมแล้ว');
     app.$nextTick(() => orderButton.current?.focus());
   }
@@ -121,9 +117,18 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
     const [moved] = ordered.splice(from, 1);
     ordered.splice(to, 0, moved);
     setDraftOrder(ordered.some((item, index) => item.id !== items[index].id) ? ordered : null);
-    setSaveError('');
-    setSaved('');
     setOrderMessage(`${moved.title || 'ภาพไม่มีชื่อ'} อยู่ลำดับ ${to + 1}`);
+  }
+
+  function notify(message, type = 'success') {
+    app.showImageToast?.(message, type);
+  }
+
+  // The form keeps the full reason next to its fields; the toast repeats it without announcing it twice.
+  function showFormError(message) {
+    setSaveError(message);
+    formErrorToast.current = message;
+    app.showImageToast?.(message, 'error', { announce: false });
   }
 
   async function changeCollection(action, body, messages) {
@@ -131,8 +136,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
     const controller = new AbortController();
     saveRequest.current = controller;
     setSaving(true);
-    setSaved('');
-    setSaveError('');
     setOrderMessage('');
     try {
       await request(action, {
@@ -142,19 +145,19 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
-      if (messages.saved) setSaved(messages.saved);
+      notify(messages.saved);
       refresh();
       heading.current?.focus();
     } catch (error) {
       if (controller.signal.aborted) return;
       if (error.status === 409) {
-        setSaveError(messages.conflict);
+        notify(messages.conflict, 'error');
         refresh();
         heading.current?.focus();
       } else if (error.status === 401 || error.status === 403) {
-        setSaveError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+        notify('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error');
       } else {
-        setSaveError(messages.failed);
+        notify(messages.failed, 'error');
       }
     } finally {
       if (!controller.signal.aborted) setSaving(false);
@@ -168,6 +171,7 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
       items: order.map(({ id, revision }) => ({ id, revision })),
       ...(menu.levels ? { level: activeLevel } : {}),
     }, {
+      saved: 'บันทึกลำดับแล้ว',
       conflict: 'รายการถูกเปลี่ยนแปลง ระบบโหลดลำดับล่าสุดให้แล้ว กรุณาจัดลำดับอีกครั้ง',
       failed: 'บันทึกลำดับไม่สำเร็จ กรุณาลองอีกครั้ง',
     });
@@ -183,8 +187,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
     const replaceItem = (replacement) => setItems((rows) => rows?.map((row) => row.id === item.id ? replacement : row));
     saveRequest.current = controller;
     setTogglePending(true);
-    setSaved('');
-    setSaveError('');
     replaceItem({ ...item, active });
     try {
       const result = await request('set-website-image-active', {
@@ -193,17 +195,20 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
         csrf: app.csrf,
         signal: controller.signal,
       });
-      if (!controller.signal.aborted) replaceItem(result.item);
+      if (!controller.signal.aborted) {
+        replaceItem(result.item);
+        notify(active ? 'เปิดการแสดงภาพแล้ว' : 'ปิดการแสดงภาพแล้ว');
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       replaceItem(item);
       if (error.status === 409) {
-        setSaveError('รายการถูกเปลี่ยนแปลง กรุณาตรวจสอบสถานะล่าสุดแล้วลองอีกครั้ง');
+        notify('รายการถูกเปลี่ยนแปลง กรุณาตรวจสอบสถานะล่าสุดแล้วลองอีกครั้ง', 'error');
         refresh(true);
       } else if (error.status === 401 || error.status === 403) {
-        setSaveError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+        notify('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error');
       } else {
-        setSaveError('เปลี่ยนสถานะการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง');
+        notify('เปลี่ยนสถานะการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง', 'error');
       }
     } finally {
       if (!controller.signal.aborted) setTogglePending(false);
@@ -237,7 +242,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
     if (saveRequest.current) return;
     focusAfterRefresh.current = null;
     setSaveError('');
-    setSaved('');
     const draft = newWebsiteImageDraft(item);
     const metadataSaved = saveWebsiteImageDraft(username, menu.id, draft);
     setEditorSession({ draft, trigger, metadataSaved });
@@ -250,6 +254,7 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
 
   function closeEditor() {
     clearWebsiteImageDraft(username, menu.id, editorSession.draft.token);
+    app.dismissToastMessage?.(formErrorToast.current);
     setEditorOpen(false);
     setSaveError('');
     const { trigger } = editorSession;
@@ -285,31 +290,31 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
       if (controller.signal.aborted) return;
       focusAfterRefresh.current = { previousItems: allItems, trigger: editorSession.trigger ?? heading.current };
       closeEditor();
-      setSaved('บันทึกภาพแล้ว');
+      notify(editing.id ? 'บันทึกภาพแล้ว' : 'เพิ่มภาพแล้ว');
       refresh(true);
     } catch (error) {
       if (controller.signal.aborted) return;
       if (error.status === 409) {
-        setSaveError('รายการถูกแก้ไขแล้ว กรุณายกเลิกและเปิดรายการล่าสุด');
+        showFormError('รายการถูกแก้ไขแล้ว กรุณายกเลิกและเปิดรายการล่าสุด');
         refresh(true);
       } else if (error.message === 'invalid_image') {
-        setSaveError('กรุณาเลือกภาพ JPEG, PNG, WebP หรือ AVIF ขนาดไม่เกิน 12 MB และ 8,192 พิกเซลต่อด้าน และ 36 ล้านพิกเซลรวม');
+        showFormError('กรุณาเลือกภาพ JPEG, PNG, WebP หรือ AVIF ขนาดไม่เกิน 12 MB และ 8,192 พิกเซลต่อด้าน และ 36 ล้านพิกเซลรวม');
       } else if (error.message === 'invalid_image_url') {
-        setSaveError('กรุณากรอกลิงก์ภาพ http:// หรือ https:// ที่ถูกต้อง');
+        showFormError('กรุณากรอกลิงก์ภาพ http:// หรือ https:// ที่ถูกต้อง');
       } else if (error.message === 'image_host_not_allowed') {
-        setSaveError('โดเมนของลิงก์ภาพไม่ได้อยู่ในรายการที่ผู้ดูแลอนุญาต');
+        showFormError('โดเมนของลิงก์ภาพไม่ได้อยู่ในรายการที่ผู้ดูแลอนุญาต');
       } else if (error.message === 'image_url_too_long') {
-        setSaveError('ลิงก์ภาพยาวเกินขนาดคอลัมน์ที่บันทึกได้ กรุณาย่อชื่อไฟล์หรือใช้ลิงก์ที่สั้นลง');
+        showFormError('ลิงก์ภาพยาวเกินขนาดคอลัมน์ที่บันทึกได้ กรุณาย่อชื่อไฟล์หรือใช้ลิงก์ที่สั้นลง');
       } else if (error.message === 'invalid_level') {
-        setSaveError('ไม่พบระดับลูกค้าที่เลือก กรุณาเลือกระดับลูกค้าอีกครั้ง');
+        showFormError('ไม่พบระดับลูกค้าที่เลือก กรุณาเลือกระดับลูกค้าอีกครั้ง');
       } else if (error.message === 'public_url_not_configured') {
-        setSaveError('ระบบยังไม่ได้ตั้งค่าโดเมนสำหรับสร้างลิงก์ภาพอัปโหลด');
+        showFormError('ระบบยังไม่ได้ตั้งค่าโดเมนสำหรับสร้างลิงก์ภาพอัปโหลด');
       } else if (error.status === 400) {
-        setSaveError('กรุณาตรวจสอบข้อมูลภาพและชื่อภาพ');
+        showFormError('กรุณาตรวจสอบข้อมูลภาพและชื่อภาพ');
       } else if (error.status === 401 || error.status === 403) {
-        setSaveError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+        showFormError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
       } else {
-        setSaveError('บันทึกภาพไม่สำเร็จ กรุณาตรวจสอบรายการก่อนลองอีกครั้ง');
+        showFormError('บันทึกภาพไม่สำเร็จ กรุณาตรวจสอบรายการก่อนลองอีกครั้ง');
       }
     } finally {
       if (!controller.signal.aborted) setSaving(false);
@@ -335,7 +340,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
         </>}
       </div>}
     </div>
-    {saved && <p role="status">{saved}</p>}
     {(!!items?.length || (menu.levels && !!allItems?.length)) && <div className="website-image-view-bar">
       {menu.levels && <div className="website-image-level-filter">
         <FilterSelect id="website-image-level-filter" label="ระดับลูกค้า" value={activeLevel} options={levelOptions}
@@ -354,7 +358,6 @@ export function WebsiteImageManager({ app, menu, editorOpen, setEditorOpen }) {
     </div>}
     {editingOrder && <p className="sr-only" ref={orderInstructions} tabIndex={-1}>ลากจุดจับหรือใช้ปุ่มลูกศรเพื่อจัดลำดับ</p>}
     <p className="sr-only" role="status">{orderMessage}</p>
-    {!editorOpen && saveError && <p role="alert">{saveError}</p>}
     {loadError && <p role="alert">{loadError} <button type="button" onClick={() => refresh()}>ลองอีกครั้ง</button></p>}
     {!items && !loadError && <div className="website-image-list-loading" aria-busy="true">
       <span className="loading-spinner" aria-hidden="true" />

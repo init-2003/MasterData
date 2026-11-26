@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, LogOut, PanelLeft, UserRound } from 'lucide-react';
-import sidebarLogo from '../assets/favicon-transparent.png';
+import sidebarLogo from '../../../shared/assets/favicon-transparent.png';
 import { ThemeMenu } from '../components/ThemeMenu.jsx';
 import { websiteImageMenus } from '../routes/website-image-menus.js';
 

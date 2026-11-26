@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Sptc\MasterData\Core;
 
-use Sptc\MasterData\Controllers\Admin\AuthController;
 use Sptc\MasterData\Controllers\Admin\ProductController;
 use Sptc\MasterData\Controllers\Admin\WebsiteImageController;
-use Sptc\MasterData\Controllers\Customer\PublicCatalogController;
-use Sptc\MasterData\Controllers\Customer\StorefrontController;
 use Sptc\MasterData\Middleware\Cors;
 use Sptc\MasterData\Middleware\Csrf;
 use Sptc\MasterData\Middleware\HostGuard;
@@ -59,22 +56,8 @@ final readonly class Api
                 'catalog/item' => 'catalog-item',
                 default => $action,
             };
-            $routes = require dirname(__DIR__, 2) . '/routes/customer.php';
-            $requiredMethod = $routes[$action] ?? null;
-            if (!is_string($requiredMethod)) {
-                self::fail(404, 'not_found');
-            }
-            if ($method !== $requiredMethod) {
-                header('Allow: ' . $requiredMethod . ', OPTIONS');
-                self::fail(405, 'method_not_allowed');
-            }
-            match ($action) {
-                'storefront' => (new StorefrontController($this->config))->storefront(),
-                'catalog' => (new PublicCatalogController($this->config))->catalog(),
-                'catalog-filters' => (new PublicCatalogController($this->config))->filters(),
-                'catalog-item' => (new PublicCatalogController($this->config))->item(),
-                default => self::fail(404, 'not_found'),
-            };
+            [, $controller, $handler] = $this->route('customer', $action, $method);
+            (new $controller($this->config))->$handler();
         }
 
         // 3. Admin API (/admin/<action>)
@@ -82,48 +65,37 @@ final readonly class Api
             header('X-Robots-Tag: noindex, nofollow');
             Cors::handle($this->config, 'admin', $method);
             $action = trim(substr($routePath, strlen('/admin/')), '/');
-            $routes = require dirname(__DIR__, 2) . '/routes/admin.php';
-            $requiredMethod = $routes[$action] ?? null;
-            if (!is_string($requiredMethod)) {
-                self::fail(404, 'not_found');
-            }
-            if ($method !== $requiredMethod) {
-                header('Allow: ' . $requiredMethod . ', OPTIONS');
-                self::fail(405, 'method_not_allowed');
-            }
+            [$requiredMethod, $controller, $handler] = $this->route('admin', $action, $method);
             $session = new Session($this->config, ($basePath === '' ? '' : $basePath) . '/admin');
             if ($requiredMethod === 'POST') {
                 Csrf::verify($session);
             }
 
-            match ($action) {
-                'session' => (new AuthController($this->config, $session))->sessionResponse(),
-                'login' => (new AuthController($this->config, $session))->login(),
-                'logout' => (new AuthController($this->config, $session))->logout(),
-                'products' => (new ProductController($this->config, $session))->products(),
-                'product-types' => (new ProductController($this->config, $session))->types(),
-                'product-units' => (new ProductController($this->config, $session))->units(),
-                'update-price' => (new ProductController($this->config, $session))->updatePrice(),
-                'product-note' => (new ProductController($this->config, $session))->productNote(),
-                'update-product-note' => (new ProductController($this->config, $session))->updateProductNote(),
-                'product-short-note' => (new ProductController($this->config, $session))->productShortNote(),
-                'update-product-short-note' => (new ProductController($this->config, $session))->updateProductShortNote(),
-                'product-image' => (new ProductController($this->config, $session))->productImage(),
-                'product-images' => (new ProductController($this->config, $session))->productImages(),
-                'upload-product-image' => (new ProductController($this->config, $session))->uploadProductImage(),
-                'save-product-image-url' => (new ProductController($this->config, $session))->saveProductImageUrl(),
-                'delete-product-image' => (new ProductController($this->config, $session))->deleteProductImage(),
-                'website-images' => (new WebsiteImageController($this->config, $session))->items(),
-                'website-image' => (new WebsiteImageController($this->config, $session))->image(),
-                'save-website-image' => (new WebsiteImageController($this->config, $session))->save(),
-                'reorder-website-images' => (new WebsiteImageController($this->config, $session))->reorder(),
-                'delete-website-image' => (new WebsiteImageController($this->config, $session))->delete(),
-                'set-website-image-active' => (new WebsiteImageController($this->config, $session))->setActive(),
-                default => self::fail(404, 'not_found'),
-            };
+            (new $controller($this->config, $session))->$handler();
         }
 
         self::fail(404, 'not_found');
+    }
+
+    /**
+     * Looks up an action and rejects unknown actions (404) and wrong HTTP methods (405).
+     *
+     * @param 'admin'|'customer' $scope
+     * @return array{string, class-string, string}
+     */
+    private function route(string $scope, string $action, string $method): array
+    {
+        /** @var array<string, array{string, class-string, string}> $routes */
+        $routes = require dirname(__DIR__, 2) . '/routes/' . $scope . '.php';
+        $route = $routes[$action] ?? null;
+        if ($route === null) {
+            self::fail(404, 'not_found');
+        }
+        if ($method !== $route[0]) {
+            header('Allow: ' . $route[0] . ', OPTIONS');
+            self::fail(405, 'method_not_allowed');
+        }
+        return $route;
     }
 
     private function normalizedRequestPath(string $basePath): string

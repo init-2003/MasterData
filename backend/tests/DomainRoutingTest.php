@@ -101,7 +101,7 @@ it('returns only active storefront website images and public product catalog ite
     expect($schema)->not->toBeFalse();
     $db->exec((string) $schema);
 
-    $bannerRepo = new WebsiteImageRepository($db, true, 'promo-banner');
+    $bannerRepo = WebsiteImageRepository::for($db, true, 'promo-banner');
     $bannerRepo->add('แบนเนอร์ปิด', 0, 'https://shop.localhost/website-images/promo-banner/hidden.jpg');
     $bannerRepo->add('แบนเนอร์เปิด', 1, 'https://shop.localhost/website-images/promo-banner/visible.jpg');
 

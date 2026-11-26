@@ -14,9 +14,11 @@
 | `frontend/admin/`, `frontend/vite.admin.config.js` | หน้าจัดการระบบ Master Data (Static build ลง `public/admin/` สำหรับ `admin.*`) |
 | `frontend/customer/`, `frontend/vite.customer.config.js` | หน้าลูกค้า สไลด์/แบนเนอร์/โปรโมชัน และแคตตาล็อกสินค้า (Static build ลง `public/customer/` สำหรับโดเมนหลักและ `www.*`) |
 | `frontend/shared/` | ตัวช่วยและไฟล์ที่ใช้ร่วมกัน (`format.js`, `api-base.js`, โลโก้) |
+| `frontend/admin/src/store/` | `app-model.js` รวมสถานะแอป, `product/` แยกเป็น `catalog`, `detail`, `notes`, `images` และ `context` (ตัวแปรที่ใช้ร่วมกัน) รวมด้วย `product.js` |
+| `frontend/admin/src/styles/` | `global.css` import ไฟล์ใน `areas/` ตามลำดับ (ลำดับมีผลเมื่อกฎมีความจำเพาะเท่ากัน) แก้สไตล์ในไฟล์ของส่วนนั้น |
 | `public/api/index.php` | จุดเข้า PHP Backend API จุดเดียวสำหรับ `api.*` (`/customer/*`, `/admin/*`, `/website-images/*`, `/product-images/*`) พร้อม Monolog |
-| `backend/src/Controllers/Admin/`, `backend/src/Controllers/Customer/`, `backend/routes/` | Controller และ route แยกฝั่งแอดมินและลูกค้า (`admin.php`, `customer.php`) |
-| `backend/src/Models/`, `backend/src/Services/` | repository ฐานข้อมูล, session (`Path=/admin`), ตรวจบัญชี และจัดการรูปสินค้า/รูปเว็บไซต์ |
+| `backend/src/Controllers/Admin/`, `backend/src/Controllers/Customer/`, `backend/routes/` | Controller แยกฝั่งแอดมินและลูกค้า ไฟล์ route (`admin.php`, `customer.php`) กำหนด `action => [HTTP method, controller, handler]` ที่เดียว เพิ่ม action ใหม่ที่ไฟล์นี้โดยไม่ต้องแก้ `Core/Api.php` |
+| `backend/src/Models/`, `backend/src/Services/` | repository ฐานข้อมูล (ตารางภาพเว็บไซต์ตั้งค่าใน `WebsiteImageRepository::COLLECTIONS` สร้างด้วย `WebsiteImageRepository::for()` ส่วนกติกาตามระดับลูกค้าอยู่ใน `PromotionLevelImageRepository`), session (`Path=/admin`), ตรวจบัญชี และจัดการรูปสินค้า/รูปเว็บไซต์ |
 | `backend/src/Core/`, `backend/src/Middleware/` | API path router, `Cors`, `Csrf`, `HostGuard`, PDO_SQLSRV และ PHP dotenv |
 | `deploy/`, `public/{api,admin,customer}/web.config`, `public/{api,admin,customer}/.htaccess` | การตั้งค่า 4-Domain Routing บน Apache, IIS FastCGI และ PHP built-in server |
 

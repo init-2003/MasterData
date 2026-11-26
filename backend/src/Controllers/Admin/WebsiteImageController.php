@@ -21,7 +21,7 @@ use Throwable;
  */
 final readonly class WebsiteImageController
 {
-    /** @var key-of<WebsiteImageRepository::TABLES> */
+    /** @var key-of<WebsiteImageRepository::COLLECTIONS> */
     private string $collection;
     private WebsiteImageRepository $repository;
     private ?CustomerLevelRepository $levels;
@@ -32,12 +32,12 @@ final readonly class WebsiteImageController
     {
         if ($session->user() === null) Api::fail(401, 'unauthorized');
         $collection = $_GET['collection'] ?? null;
-        if (!is_string($collection) || !isset(WebsiteImageRepository::TABLES[$collection])) {
+        if (!is_string($collection) || !isset(WebsiteImageRepository::COLLECTIONS[$collection])) {
             Api::fail(400, 'invalid_input');
         }
         $this->collection = $collection;
         $db = Database::connect($config);
-        $this->repository = new WebsiteImageRepository($db, $config->demo(), $collection);
+        $this->repository = WebsiteImageRepository::for($db, $config->demo(), $collection);
         $this->levels = $this->repository->hasLevel() ? new CustomerLevelRepository($db, $config->demo()) : null;
         $this->images = new ProductImage($config, 'website-images');
         $this->urls = new WebsiteImageUrl($config, $this->images);
@@ -67,7 +67,7 @@ final readonly class WebsiteImageController
             Api::fail(404, 'not_found');
         }
 
-        if (!isset(WebsiteImageRepository::TABLES[$collection])) {
+        if (!isset(WebsiteImageRepository::COLLECTIONS[$collection])) {
             Api::fail(404, 'not_found');
         }
 
@@ -79,7 +79,7 @@ final readonly class WebsiteImageController
 
         $urls = new WebsiteImageUrl($config, $images);
         $candidates = $urls->managedLookupCandidates($collection, $filename);
-        $repository = new WebsiteImageRepository(Database::connect($config), $config->demo(), $collection);
+        $repository = WebsiteImageRepository::for(Database::connect($config), $config->demo(), $collection);
         if (!$repository->hasActiveManagedImage($candidates)) {
             Api::fail(404, 'not_found');
         }

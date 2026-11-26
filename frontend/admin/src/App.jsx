@@ -14,10 +14,12 @@ export function App() {
       message={app.imageToast}
       type={app.imageToastType}
       version={app.imageToastVersion}
+      announce={app.imageToastAnnounce}
       onDismiss={() => app.dismissToast()}
       returnFocus={() => {
         if (!app.user) document.getElementById('username')?.focus();
-        else (app.detailOpen ? app.$refs.detailHeading : app.$refs.search)?.focus();
+        else if (app.detailOpen) app.$refs.detailHeading?.focus();
+        else (document.getElementById('website-image-editor-heading') ?? app.$refs.search ?? document.getElementById('website-images-heading'))?.focus();
       }}
     />
   </>;

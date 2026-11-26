@@ -1,6 +1,6 @@
 # SPTC. Master Data
 
-โค้ด backend ใน `backend/src/` แยกเป็น `Controllers/Admin/` และ `Controllers/Customer/` ตามโดเมน, `Models/` สำหรับอ่านและบันทึกฐานข้อมูล, `Services/` สำหรับบัญชี session และรูป, `Middleware/` สำหรับตรวจ CSRF และ `HostGuard` และ `Core/` สำหรับ API และการตั้งค่าฐานข้อมูล โดย `backend/routes/admin.php` และ `backend/routes/customer.php` แยก action และ HTTP method ของแต่ละโดเมน
+โค้ด backend ใน `backend/src/` แยกเป็น `Controllers/Admin/` และ `Controllers/Customer/` ตามโดเมน, `Models/` สำหรับอ่านและบันทึกฐานข้อมูล, `Services/` สำหรับบัญชี session และรูป, `Middleware/` สำหรับตรวจ CSRF และ `HostGuard` และ `Core/` สำหรับ API และการตั้งค่าฐานข้อมูล โดย `backend/routes/admin.php` และ `backend/routes/customer.php` กำหนด HTTP method, controller และ handler ของแต่ละ action
 
 โค้ด frontend ใน `frontend/` แยกออกเป็น 3 ส่วน:
 - `frontend/customer/` — หน้าลูกค้า (สไลด์ แบนเนอร์ โปรโมชัน และค้นหา/ดูสินค้า) build ลง `public/customer/`

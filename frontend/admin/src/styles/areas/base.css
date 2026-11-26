@@ -1,0 +1,22 @@
+/* Page defaults and shared text helpers. */
+@layer base {
+  html { background: var(--surface); color: var(--color-ink); font-family: var(--font-sans); }
+  body { min-width: 280px; }
+  button:not(:disabled) { cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--action-text); outline-offset: 4px; }
+}
+
+.muted { color: var(--text-secondary); }
+.page-title { overflow-wrap: anywhere; }
+.container-xl { margin-inline: auto; }
+
+@media (max-width: 900px) {
+  .container-xl { width: calc(100% - 2.5rem); }
+}
+
+body { font-size: .875rem; line-height: 1.5; }
+.page-title { font-size: 1.375rem; font-weight: 800; line-height: 1.4; }
+.container-xl { width: calc(100% - 2rem); }
+@media (max-width: 650px) {
+  .container-xl { width: calc(100% - 1rem); }
+}

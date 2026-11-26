@@ -122,7 +122,9 @@ if ($subPath !== null) {
             return true;
         }
     }
-    if (preg_match('~\A/assets/[A-Za-z0-9._-]+\z~', $subPath) && is_file($public . $subPath)) {
+    // theme-init.js sits beside index.html: the admin page loads it before the app to apply the saved theme.
+    $isThemeScript = $scope === 'admin' && $subPath === '/theme-init.js';
+    if (($isThemeScript || preg_match('~\A/assets/[A-Za-z0-9._-]+\z~', $subPath)) && is_file($public . $subPath)) {
         $file = $public . $subPath;
         $mime = match (strtolower(pathinfo($file, PATHINFO_EXTENSION))) {
             'js', 'mjs' => 'application/javascript; charset=utf-8',
