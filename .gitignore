@@ -19,3 +19,6 @@
 /public/admin/theme-init.js
 /public/customer/assets/
 /public/customer/index.html
+
+# Local frontend verification scratch folder
+/.verify-frontend/
