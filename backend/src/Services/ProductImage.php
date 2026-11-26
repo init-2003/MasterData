@@ -10,7 +10,9 @@ use Sptc\MasterData\Core\Config;
 
 final readonly class ProductImage
 {
-    public const MAX_SIZE = 5 * 1024 * 1024;
+    public const MAX_SIZE = 12 * 1024 * 1024;
+    private const MAX_SIDE = 8192;
+    private const MAX_PIXELS = 36_000_000;
     private const PREFIX = 'storage/product-images/';
 
     /** @param 'product-images'|'website-images' $directoryName */
@@ -61,6 +63,7 @@ final readonly class ProductImage
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
             'webp' => 'image/webp',
+            'avif' => 'image/avif',
             default => null,
         };
     }
@@ -68,8 +71,16 @@ final readonly class ProductImage
     public function save(string $code, int $slot, string $uploadedPath, string $originalName): string
     {
         $size = filesize($uploadedPath);
+        if ($size === false || $size === 0 || $size > self::MAX_SIZE) {
+            throw new InvalidArgumentException('Invalid image size');
+        }
         $info = @getimagesize($uploadedPath);
-        if ($size === false || $size === 0 || $size > self::MAX_SIZE || $info === false || !in_array($info['mime'], ['image/jpeg', 'image/png', 'image/webp'], true) || $info[0] < 1 || $info[1] < 1 || $info[0] > 4096 || $info[1] > 4096 || $info[0] * $info[1] > 16000000) throw new InvalidArgumentException('Invalid image');
+        if ($info === false
+            || !in_array($info['mime'], ['image/jpeg', 'image/png', 'image/webp', 'image/avif'], true)
+            || $info[0] < 1 || $info[1] < 1 || $info[0] > self::MAX_SIDE || $info[1] > self::MAX_SIDE
+            || $info[0] * $info[1] > self::MAX_PIXELS) {
+            throw new InvalidArgumentException('Invalid image');
+        }
         if (!mb_check_encoding($originalName, 'UTF-8')) throw new InvalidArgumentException('Invalid image filename');
         $filename = basename(str_replace('\\', '/', $originalName));
         $stem = pathinfo($filename, PATHINFO_FILENAME);
@@ -82,6 +93,7 @@ final readonly class ProductImage
             : match ($type) {
                 'image/jpeg' => 'jpg',
                 'image/webp' => 'webp',
+                'image/avif' => 'avif',
                 default => 'png',
             };
         $folder = self::folder($code);
@@ -102,9 +114,10 @@ final readonly class ProductImage
             $encoded = match ($type) {
                 'image/jpeg' => imagejpeg($image, $temporary, 92),
                 'image/webp' => imagewebp($image, $temporary, IMG_WEBP_LOSSLESS),
+                'image/avif' => imageavif($image, $temporary, 90),
                 default => imagepng($image, $temporary),
             };
-            if (!$encoded) throw new RuntimeException('Unable to encode image');
+            if (!$encoded || filesize($temporary) === 0) throw new RuntimeException('Unable to encode image');
             $lock = fopen($dir . '/.upload.lock', 'c');
             if ($lock === false || !flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock image directory');
             $entries = scandir($dir);

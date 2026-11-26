@@ -3,12 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build --config vite.admin.config.js && vite build --config vite.customer.config.js",
+    "build:admin": "vite build --config vite.admin.config.js",
+    "build:customer": "vite build --config vite.customer.config.js",
     "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource-variable/noto-sans-thai": "^5.2.0",
-    "@fontsource-variable/outfit": "^5.2.0",
     "lucide-react": "^1.75.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

@@ -3,27 +3,88 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$public = $root . '/public';
-$path = explode('?', (string) ($_SERVER['REQUEST_URI'] ?? '/'), 2)[0];
+$uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+$path = explode('?', $uri, 2)[0];
 
-$rawBasePath = $_SERVER['APP_BASE_PATH'] ?? getenv('APP_BASE_PATH');
-if (!is_string($rawBasePath) || trim($rawBasePath) === '') {
+$readSetting = static function (string $key) use ($root): string {
+    $value = $_SERVER[$key] ?? getenv($key);
+    if (is_string($value) && trim($value) !== '') {
+        return trim($value);
+    }
     $envFile = $root . '/.env';
     if (is_file($envFile)) {
         foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
             $trimmedLine = trim($line);
             if ($trimmedLine === '' || str_starts_with($trimmedLine, '#')) continue;
-            if (preg_match('/\AAPP_BASE_PATH\s*=\s*(.*)\z/', $trimmedLine, $match) === 1) {
-                $rawBasePath = trim($match[1], " \t\"'");
-                break;
+            if (preg_match('/\A' . preg_quote($key, '/') . '\s*=\s*(.*)\z/', $trimmedLine, $match) === 1) {
+                return trim($match[1], " \t\"'");
             }
         }
     }
+    return '';
+};
+
+$rawHostHeader = (string) ($_SERVER['HTTP_HOST'] ?? '');
+$hostParts = explode(':', trim($rawHostHeader), 2);
+$requestHost = rtrim(strtolower($hostParts[0]), '.');
+$portSuffix = isset($hostParts[1]) && ctype_digit($hostParts[1]) ? ':' . $hostParts[1] : '';
+
+$parseHostList = static function (string $raw): array {
+    $hosts = [];
+    foreach (explode(',', $raw) as $entry) {
+        $h = rtrim(strtolower(explode(':', trim($entry), 2)[0]), '.');
+        if ($h !== '') $hosts[] = $h;
+    }
+    return array_values(array_unique($hosts));
+};
+
+$rawApiHosts = $readSetting('API_HOSTS');
+$rawAdminHosts = $readSetting('ADMIN_HOSTS');
+$rawCustomerHosts = $readSetting('CUSTOMER_HOSTS');
+
+$apiHosts = $parseHostList($rawApiHosts !== '' ? $rawApiHosts : 'api.localhost');
+$adminHosts = $parseHostList($rawAdminHosts !== '' ? $rawAdminHosts : 'admin.localhost');
+$customerHosts = $parseHostList($rawCustomerHosts !== '' ? $rawCustomerHosts : 'shop.localhost,www.shop.localhost,localhost,127.0.0.1');
+
+// 1. Backend API domain (api.example.com / api.localhost)
+if (in_array($requestHost, $apiHosts, true)) {
+    $_SERVER['SCRIPT_NAME'] = '/index.php';
+    $_SERVER['PHP_SELF'] = '/index.php';
+    require $root . '/public/api/index.php';
+    return true;
 }
 
+// 2. Canonical 301 redirect: www.<domain> -> <domain> on customer site
+if (str_starts_with($requestHost, 'www.') && in_array($requestHost, $customerHosts, true)) {
+    $targetHost = substr($requestHost, 4);
+    if (in_array($targetHost, $customerHosts, true)) {
+        header('Location: http://' . $targetHost . $portSuffix . $uri, true, 301);
+        return true;
+    }
+}
+
+// 3. Static frontend domains (customer vs admin)
+$scope = null;
+if (in_array($requestHost, $adminHosts, true)) {
+    $scope = 'admin';
+} elseif (in_array($requestHost, $customerHosts, true)) {
+    $scope = 'customer';
+} elseif ($rawApiHosts === '' && $rawAdminHosts === '' && $rawCustomerHosts === '') {
+    $scope = 'customer';
+}
+
+if ($scope === null) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Not Found';
+    return true;
+}
+
+$public = $root . '/public/' . $scope;
+$rawBasePath = $readSetting('APP_BASE_PATH');
 $basePath = '';
-if (is_string($rawBasePath)) {
-    $trimmedBase = trim(trim($rawBasePath), '/');
+if ($rawBasePath !== '') {
+    $trimmedBase = trim($rawBasePath, '/');
     if ($trimmedBase !== '' && preg_match('/\A[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)*\z/', $trimmedBase) === 1) {
         $segments = explode('/', $trimmedBase);
         if (!in_array('.', $segments, true) && !in_array('..', $segments, true)) {
@@ -45,59 +106,37 @@ if ($basePath === '') {
 }
 
 if ($subPath !== null) {
-    if (preg_match('~\A/website-images/([a-z0-9-]+)/([^/]+)\z~', $subPath, $match) === 1) {
-        $_GET['website-image'] = $match[1] . '/' . rawurldecode($match[2]);
-        $_SERVER['SCRIPT_NAME'] = ($basePath === '' ? '' : $basePath) . '/api.php';
-        $_SERVER['PHP_SELF'] = $_SERVER['SCRIPT_NAME'];
-        require $public . '/api.php';
-        return true;
-    }
-    if (preg_match('~\A/product-images/([^/]+)/([^/]+)\z~', $subPath, $match) === 1) {
-        $_GET['path'] = rawurldecode($match[1]) . '/' . rawurldecode($match[2]);
-        $_SERVER['SCRIPT_NAME'] = ($basePath === '' ? '' : $basePath) . '/api.php';
-        $_SERVER['PHP_SELF'] = $_SERVER['SCRIPT_NAME'];
-        require $public . '/api.php';
-        return true;
-    }
-
-    if ($basePath === '') {
-        if (in_array($subPath, ['/', '/index.html', '/api.php'], true)) {
-            return false;
-        }
-        if (preg_match('~\A/assets/[A-Za-z0-9._-]+\z~', $subPath) && is_file($public . $subPath)) {
-            return false;
-        }
-    } else {
-        if ($subPath === '/' || $subPath === '/index.html') {
-            $index = $public . '/index.html';
-            if (is_file($index)) {
-                header('Content-Type: text/html; charset=utf-8');
-                readfile($index);
-                return true;
+    if ($subPath === '/' || $subPath === '/index.html') {
+        $index = $public . '/index.html';
+        if (is_file($index)) {
+            header('Content-Type: text/html; charset=utf-8');
+            header('X-Content-Type-Options: nosniff');
+            header('Referrer-Policy: same-origin');
+            if ($scope === 'admin') {
+                header('X-Frame-Options: DENY');
+                header('X-Robots-Tag: noindex, nofollow');
+            } else {
+                header('X-Frame-Options: SAMEORIGIN');
             }
-        }
-        if ($subPath === '/api.php') {
-            $_SERVER['SCRIPT_NAME'] = $basePath . '/api.php';
-            $_SERVER['PHP_SELF'] = $basePath . '/api.php';
-            require $public . '/api.php';
+            readfile($index);
             return true;
         }
-        if (preg_match('~\A/assets/[A-Za-z0-9._-]+\z~', $subPath) && is_file($public . $subPath)) {
-            $file = $public . $subPath;
-            $mime = match (strtolower(pathinfo($file, PATHINFO_EXTENSION))) {
-                'js', 'mjs' => 'application/javascript; charset=utf-8',
-                'css' => 'text/css; charset=utf-8',
-                'woff2' => 'font/woff2',
-                'png' => 'image/png',
-                'jpg', 'jpeg' => 'image/jpeg',
-                'webp' => 'image/webp',
-                'svg' => 'image/svg+xml',
-                default => 'application/octet-stream',
-            };
-            header('Content-Type: ' . $mime);
-            readfile($file);
-            return true;
-        }
+    }
+    if (preg_match('~\A/assets/[A-Za-z0-9._-]+\z~', $subPath) && is_file($public . $subPath)) {
+        $file = $public . $subPath;
+        $mime = match (strtolower(pathinfo($file, PATHINFO_EXTENSION))) {
+            'js', 'mjs' => 'application/javascript; charset=utf-8',
+            'css' => 'text/css; charset=utf-8',
+            'woff2' => 'font/woff2',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            default => 'application/octet-stream',
+        };
+        header('Content-Type: ' . $mime);
+        readfile($file);
+        return true;
     }
 }
 

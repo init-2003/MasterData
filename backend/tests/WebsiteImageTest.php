@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Sptc\MasterData\Core\Config;
+use Sptc\MasterData\Models\CustomerLevelRepository;
 use Sptc\MasterData\Models\WebsiteImageRepository;
 use Sptc\MasterData\Services\ProductImage;
 use Sptc\MasterData\Services\WebsiteImageUrl;
@@ -179,4 +180,117 @@ it('checks active managed images and enforces per-table URL lengths in WebsiteIm
     $reloaded = $bannerRepo->items()[2];
     expect($reloaded['path'])->toBe($fullUrl)
         ->and($reloaded['linkUrl'])->toBeNull();
+});
+
+it('stores promotion-level images per customer level and keeps ordering within each level', function () {
+    $db = new PDO('sqlite::memory:', options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+    $schema = file_get_contents(dirname(__DIR__, 2) . '/database/demo.sql');
+    expect($schema)->not->toBeFalse();
+    $db->exec((string) $schema);
+    $db->exec("INSERT INTO Customer (Customer_Id, Customer_Type, Customer_Lavel) VALUES
+        ('C1', 'ขายปลีก', '1'), ('C2', 'ขายส่ง 1', '2'), ('C3', ' ขายส่ง 2 ', '3'), ('C4', 'ขายส่ง 1', '2'),
+        ('C5', NULL, '4'), ('C6', 'ไม่มีรหัส', NULL), ('C7', 'ว่าง', '')");
+    // Rows written by the earlier promotion system: file name only, NULL remark, several rows sharing one Sort_Order.
+    $db->exec("INSERT INTO Web_Promotion_Level (Auto_ID, Customer_Lavel, Level_Name, Image_Url, Sort_Order, Remark, Is_Active) VALUES
+        (9, '2', 'ขายส่ง1', 'Promotionlevel_1773857819_5529.jpg', 4, NULL, 0),
+        (10, '2', 'ขายส่ง1', 'Promotionlevel_1773883743_9045.png', 2, NULL, 0),
+        (19, '3', 'ขายส่ง2', 'Promotionlevel_1786084184_4529.png', 1, NULL, 1)");
+
+    $levels = new CustomerLevelRepository($db, true);
+    expect($levels->all())->toBe([
+        ['code' => '1', 'name' => 'ขายปลีก'],
+        ['code' => '2', 'name' => 'ขายส่ง 1'],
+        ['code' => '3', 'name' => 'ขายส่ง 2'],
+    ])->and($levels->find('2'))->toBe(['code' => '2', 'name' => 'ขายส่ง 1'])
+        ->and($levels->find('4'))->toBeNull()
+        ->and($levels->find(''))->toBeNull();
+
+    $repo = new WebsiteImageRepository($db, true, 'promotion-level');
+    expect($repo->hasLevel())->toBeTrue()
+        ->and($repo->hasLinkUrl())->toBeFalse()
+        ->and($repo->imageUrlColumnSpec())->toBe(['maxLength' => 500, 'utf16' => true])
+        ->and((new WebsiteImageRepository($db, true, 'promo-sale'))->hasLevel())->toBeFalse();
+
+    $legacy = $repo->items();
+    expect(array_column($legacy, 'id'))->toBe(['10', '9', '19'])
+        ->and($legacy[0])->toMatchArray(['title' => '', 'level' => '2', 'levelName' => 'ขายส่ง1', 'path' => 'Promotionlevel_1773883743_9045.png'])
+        ->and(array_column($repo->items(level: '3'), 'id'))->toBe(['19']);
+
+    $wholesale1 = ['code' => '2', 'name' => 'ขายส่ง 1'];
+    $wholesale2 = ['code' => '3', 'name' => 'ขายส่ง 2'];
+    $repo->add('', 1, 'new-level2.jpg', null, $wholesale1);
+    $repo->add('โปรขายส่ง 2', 0, 'new-level3.png', null, $wholesale2);
+    $level2 = $repo->items(level: '2');
+    $added = $level2[2];
+    expect(array_column($level2, 'id'))->toBe(['10', '9', $added['id']])
+        ->and($added)->toMatchArray(['title' => '', 'position' => 5, 'active' => true, 'level' => '2', 'levelName' => 'ขายส่ง 1', 'path' => 'new-level2.jpg'])
+        ->and($db->query("SELECT Remark, Status FROM Web_Promotion_Level WHERE Auto_ID = {$added['id']}")->fetch())
+        ->toBe(['Remark' => null, 'Status' => 'Y'])
+        ->and($repo->items(level: '3')[1])->toMatchArray(['title' => 'โปรขายส่ง 2', 'position' => 2, 'level' => '3']);
+
+    expect(fn () => $repo->add('x', 1, 'x.jpg'))->toThrow(InvalidArgumentException::class);
+
+    // Moving a row to another level appends it there; staying in the same level keeps its position.
+    expect($repo->update((int) $added['id'], $added['revision'], 'ย้ายระดับ', 1, null, null, false, $wholesale2))->toBeTrue();
+    $moved = $repo->items(level: '3')[2];
+    expect($moved)->toMatchArray(['id' => $added['id'], 'title' => 'ย้ายระดับ', 'position' => 3, 'level' => '3', 'levelName' => 'ขายส่ง 2', 'path' => 'new-level2.jpg'])
+        ->and($repo->update((int) $moved['id'], $added['revision'], 'เก่า', 1, null, null, false, $wholesale2))->toBeFalse();
+    expect($repo->update((int) $moved['id'], $moved['revision'], 'คงระดับ', 0, 'replaced.webp', null, false, $wholesale2))->toBeTrue()
+        ->and($repo->items(level: '3')[2])->toMatchArray(['title' => 'คงระดับ', 'position' => 3, 'active' => false, 'path' => 'replaced.webp']);
+
+    // Reordering covers exactly one level and leaves the other levels untouched.
+    $level3 = $repo->items(level: '3');
+    $reversed = [];
+    foreach (array_reverse($level3) as $row) $reversed[(int) $row['id']] = $row['revision'];
+    expect($repo->reorder($reversed))->toBeFalse()
+        ->and($repo->reorder($reversed, '2'))->toBeFalse()
+        ->and($repo->reorder($reversed, '3'))->toBeTrue()
+        ->and(array_column($repo->items(level: '3'), 'position'))->toBe([1, 2, 3])
+        ->and(array_column($repo->items(level: '3'), 'id'))->toBe(array_map('strval', array_keys($reversed)))
+        ->and(array_column($repo->items(level: '2'), 'position'))->toBe([2, 4]);
+
+    // Only active rows are public, matched by their stored file name.
+    expect($repo->hasActiveManagedImage(['Promotionlevel_1786084184_4529.png']))->toBeTrue()
+        ->and($repo->hasActiveManagedImage(['Promotionlevel_1773857819_5529.jpg']))->toBeFalse();
+});
+
+it('treats promotion-level Image_Url values as file names in the website image store', function () {
+    $root = sys_get_temp_dir() . '/sptc-level-url-' . bin2hex(random_bytes(8));
+    mkdir($root, 0700, true);
+    $envKeys = ['APP_MODE', 'APP_HTTPS', 'APP_PUBLIC_ORIGIN', 'APP_BASE_PATH', 'WEBSITE_LEGACY_IMAGE_BASE_URL'];
+    $previous = [];
+    foreach ($envKeys as $key) $previous[$key] = $_ENV[$key] ?? null;
+
+    try {
+        $_ENV['APP_MODE'] = 'production';
+        $_ENV['APP_HTTPS'] = 'true';
+        $_ENV['APP_PUBLIC_ORIGIN'] = 'https://assets.example.com';
+        $_ENV['APP_BASE_PATH'] = '';
+        $_ENV['WEBSITE_LEGACY_IMAGE_BASE_URL'] = 'https://legacy.example.com/promotion';
+        $config = new Config($root);
+        $urls = new WebsiteImageUrl($config, new ProductImage($config, 'website-images'));
+
+        expect(WebsiteImageUrl::storesFilename('promotion-level'))->toBeTrue()
+            ->and(WebsiteImageUrl::storesFilename('promo-sale'))->toBeFalse()
+            ->and($urls->parseManagedFilename('promotion-level', 'Promotionlevel_1773857819_5529.jpg'))->toBe('Promotionlevel_1773857819_5529.jpg')
+            ->and($urls->parseManagedFilename('promotion-level', 'nested/file.jpg'))->toBeNull()
+            ->and($urls->parseManagedFilename('promotion-level', 'file.gif'))->toBeNull()
+            ->and($urls->parseManagedFilename('promo-sale', 'Promotionlevel_1773857819_5529.jpg'))->toBeNull()
+            ->and($urls->managedLookupCandidates('promotion-level', 'a.png'))->toContain('a.png')
+            ->and($urls->managedLookupCandidates('promo-sale', 'a.png'))->not->toContain('a.png');
+
+        expect($urls->describe('promotion-level', 'โปร ขายส่ง.png'))->toBe([
+            'sourceType' => 'upload',
+            'managedFilename' => 'โปร ขายส่ง.png',
+            'previewUrl' => null,
+            'imageUrl' => 'https://assets.example.com/website-images/promotion-level/%E0%B9%82%E0%B8%9B%E0%B8%A3%20%E0%B8%82%E0%B8%B2%E0%B8%A2%E0%B8%AA%E0%B9%88%E0%B8%87.png',
+        ])->and($urls->describe('promotion-level', 'https://cdn.example.com/level.jpg')['sourceType'])->toBe('url')
+            ->and($urls->legacyPreviewUrl('Promotionlevel_1773857819_5529.jpg'))->toBe('https://legacy.example.com/promotion/Promotionlevel_1773857819_5529.jpg');
+    } finally {
+        foreach ($previous as $key => $value) {
+            if ($value === null) unset($_ENV[$key]);
+            else $_ENV[$key] = $value;
+        }
+        rmdir($root);
+    }
 });

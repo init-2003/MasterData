@@ -1,0 +1,77 @@
+# 4-Domain Architecture example for Apache:
+# - https://example.com & https://www.example.com (Static main website, www -> 301 root)
+# - https://api.example.com (Single PHP Backend API + public image server)
+# - https://admin.example.com (Static Admin console, noindex)
+
+<Directory "C:/xampp/htdocs/SPTC.,Ltd">
+    AllowOverride None
+    Require all denied
+</Directory>
+
+# 1. Main website (example.com + www.example.com -> public/customer, static only)
+<VirtualHost *:443>
+    ServerName example.com
+    ServerAlias www.example.com
+    DocumentRoot "C:/xampp/htdocs/SPTC.,Ltd/public/customer"
+
+    <Directory "C:/xampp/htdocs/SPTC.,Ltd/public/customer">
+        AllowOverride None
+        Options -Indexes
+        DirectoryIndex index.html
+        Require all granted
+
+        <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+            RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+        </IfModule>
+
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options "nosniff"
+            Header always set X-Frame-Options "SAMEORIGIN"
+        </IfModule>
+    </Directory>
+</VirtualHost>
+
+# 2. Backend API (api.example.com -> public/api, PHP 8.5)
+<VirtualHost *:443>
+    ServerName api.example.com
+    DocumentRoot "C:/xampp/htdocs/SPTC.,Ltd/public/api"
+
+    <Directory "C:/xampp/htdocs/SPTC.,Ltd/public/api">
+        AllowOverride None
+        Options -Indexes
+        Require all granted
+
+        <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteRule ^api\.php$ index.php [L,QSA]
+            RewriteCond %{REQUEST_FILENAME} !-f
+            RewriteRule ^ index.php [L,QSA]
+        </IfModule>
+
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options "nosniff"
+            Header always set X-Frame-Options "DENY"
+        </IfModule>
+    </Directory>
+</VirtualHost>
+
+# 3. Admin console (admin.example.com -> public/admin, static only)
+<VirtualHost *:443>
+    ServerName admin.example.com
+    DocumentRoot "C:/xampp/htdocs/SPTC.,Ltd/public/admin"
+
+    <Directory "C:/xampp/htdocs/SPTC.,Ltd/public/admin">
+        AllowOverride None
+        Options -Indexes
+        DirectoryIndex index.html
+        Require all granted
+
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options "nosniff"
+            Header always set X-Frame-Options "DENY"
+            Header always set X-Robots-Tag "noindex, nofollow"
+        </IfModule>
+    </Directory>
+</VirtualHost>

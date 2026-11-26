@@ -152,6 +152,18 @@ it('validates images and preserves the previous image when replacement is invali
         $jpegPath = $storage->path('011003.', 1, $jpegRelative);
         expect($jpegRelative)->toBe('011003%2E/banner.jpeg')
             ->and($storage->filenameMediaType('banner.jpeg'))->toBe('image/jpeg');
+
+        $avifSource = $root . '/photo.avif';
+        $wideImage = imagecreatetruecolor(5000, 16);
+        expect(imageavif($wideImage, $avifSource))->toBeTrue();
+        $avifRelative = $storage->save('011003.', 1, $avifSource, 'campaign.png');
+        $avifPath = $storage->path('011003.', 1, $avifRelative);
+        expect($avifRelative)->toBe('011003%2E/campaign.avif')
+            ->and($storage->filenameMediaType('campaign.avif'))->toBe('image/avif')
+            ->and(getimagesize($avifPath)[0])->toBe(5000)
+            ->and(getimagesize($avifPath)['mime'])->toBe('image/avif')
+            ->and(imagecreatefromavif($avifPath))->toBeInstanceOf(GdImage::class);
+
         $original = file_get_contents($path);
         expect($original)->not->toBeFalse();
         expect(fn () => $storage->save('011003.', 1, $bad, 'bad.png'))->toThrow(InvalidArgumentException::class);
@@ -163,6 +175,8 @@ it('validates images and preserves the previous image when replacement is invali
         if (isset($secondPath) && is_file($secondPath)) unlink($secondPath);
         if (isset($thirdPath) && is_file($thirdPath)) unlink($thirdPath);
         if (isset($jpegPath) && is_file($jpegPath)) unlink($jpegPath);
+        if (isset($avifPath) && is_file($avifPath)) unlink($avifPath);
+        if (isset($avifSource) && is_file($avifSource)) unlink($avifSource);
         if (isset($jpegSource) && is_file($jpegSource)) unlink($jpegSource);
         if (is_file($root . '/var/demo/product-images/011003%2E/.upload.lock')) unlink($root . '/var/demo/product-images/011003%2E/.upload.lock');
         if (is_dir($root . '/var/demo/product-images/011003%2E')) rmdir($root . '/var/demo/product-images/011003%2E');

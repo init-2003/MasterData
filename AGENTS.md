@@ -4,22 +4,23 @@
 
 - เว็บภายในสำหรับ Login, Logout และอ่านข้อมูลหลักสินค้า หน้าจอและข้อความผู้ใช้เป็นภาษาไทย
 - SQL Server ฐาน `DBITManagement` เป็นแหล่งข้อมูลจริง ใช้ `dbo.Trade` สำหรับสินค้าและ `dbo.System_Access` สำหรับบัญชีเดิม ผู้ใช้ที่เข้าสู่ระบบแก้ไขราคาขายและอัปโหลดรูปสินค้าได้ การเปลี่ยนข้อมูลอื่นหรือเพิ่มโมดูลต้องมีคำขอโดยตรง
+- เมนูโปรโมชันตามระดับ (`collection=promotion-level`) ใช้ `dbo.Web_Promotion_Level` เก็บ `Image_Url` เป็นชื่อไฟล์เท่านั้น เปิด/ปิดด้วย `Is_Active` เรียงลำดับแยกตาม `Customer_Lavel` และอ่านระดับจาก `dbo.Customer` (`Customer_Lavel` = รหัส, `Customer_Type` = ชื่อที่แสดง) หน้าลูกค้ายังไม่กรองภาพตามระดับ
 - อ่าน [design.md](design.md) ก่อนแก้หน้าจอ ดูวิธีติดตั้งและรันใน [README.md](README.md)
 
 ## จุดเข้าและไฟล์ต้นทาง
 
 | เส้นทาง | หน้าที่ |
 | --- | --- |
-| `frontend/index.html`, `frontend/src/styles/global.css` | จุดเริ่ม HTML5 และสไตล์ Tailwind CSS |
-| `frontend/src/main.jsx`, `frontend/src/App.jsx`, `frontend/src/pages/`, `frontend/src/layouts/`, `frontend/src/components/`, `frontend/src/routes/` | จุดเริ่ม React, หน้าจอ ส่วนประกอบ โครงหน้า และการเลือกหน้าตามสถานะบัญชี |
-| `frontend/src/store/`, `frontend/src/services/`, `frontend/src/utils/` | state และ logic สินค้าและบัญชี, การเรียก API, รูปฉบับร่าง และตัวช่วยร่วม |
-| `public/api.php` | จุดเข้า PHP และบันทึกข้อผิดพลาดด้วย Monolog |
-| `backend/src/Controllers/`, `backend/routes/` | Controller บัญชีและสินค้า พร้อม action และ HTTP method |
-| `backend/src/Models/`, `backend/src/Services/` | repository ฐานข้อมูล, session, ตรวจบัญชี และจัดการรูปสินค้า |
-| `backend/src/Core/`, `backend/src/Middleware/` | API, CSRF, PDO_SQLSRV และ PHP dotenv |
-| `deploy/`, `public/web.config`, `public/.htaccess` | การตั้งค่า Apache/XAMPP, IIS FastCGI และ PHP built-in server |
+| `frontend/admin/`, `frontend/vite.admin.config.js` | หน้าจัดการระบบ Master Data (Static build ลง `public/admin/` สำหรับ `admin.*`) |
+| `frontend/customer/`, `frontend/vite.customer.config.js` | หน้าลูกค้า สไลด์/แบนเนอร์/โปรโมชัน และแคตตาล็อกสินค้า (Static build ลง `public/customer/` สำหรับโดเมนหลักและ `www.*`) |
+| `frontend/shared/` | ตัวช่วยและไฟล์ที่ใช้ร่วมกัน (`format.js`, `api-base.js`, โลโก้) |
+| `public/api/index.php` | จุดเข้า PHP Backend API จุดเดียวสำหรับ `api.*` (`/customer/*`, `/admin/*`, `/website-images/*`, `/product-images/*`) พร้อม Monolog |
+| `backend/src/Controllers/Admin/`, `backend/src/Controllers/Customer/`, `backend/routes/` | Controller และ route แยกฝั่งแอดมินและลูกค้า (`admin.php`, `customer.php`) |
+| `backend/src/Models/`, `backend/src/Services/` | repository ฐานข้อมูล, session (`Path=/admin`), ตรวจบัญชี และจัดการรูปสินค้า/รูปเว็บไซต์ |
+| `backend/src/Core/`, `backend/src/Middleware/` | API path router, `Cors`, `Csrf`, `HostGuard`, PDO_SQLSRV และ PHP dotenv |
+| `deploy/`, `public/{api,admin,customer}/web.config`, `public/{api,admin,customer}/.htaccess` | การตั้งค่า 4-Domain Routing บน Apache, IIS FastCGI และ PHP built-in server |
 
-Frontend และ API ใช้ origin เดียวกันและใช้ URL แบบสัมพัทธ์เพื่อรองรับการรันใต้ path ของแอป ใช้ `public/` เป็น document root แก้ frontend ใน `frontend/` แล้ว build ด้วย Vite ซึ่งสร้าง `public/index.html` และ `public/assets/`
+Frontend แยกเป็น Static Site (`public/customer/` สำหรับ `example.com` + `www.example.com` และ `public/admin/` สำหรับ `admin.example.com`) เรียก Backend API กลางที่ `api.example.com` (`public/api/`) ผ่าน CORS + CSP `connect-src` ที่กำหนดจาก `VITE_API_BASE_URL` ตอน build (`pnpm --dir frontend build`)
 
 ## สัญญาของ API และฐานข้อมูล
 
