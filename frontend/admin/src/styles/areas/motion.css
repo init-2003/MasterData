@@ -1,0 +1,4 @@
+/* Must stay last: turns motion off for people who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
+}

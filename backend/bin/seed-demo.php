@@ -25,7 +25,7 @@ $columns = $columnQuery->fetchAll(PDO::FETCH_COLUMN, 1);
 foreach (['image1', 'image2', 'note', 'short_note'] as $column) {
     if (!in_array($column, $columns, true)) $db->exec("ALTER TABLE products ADD COLUMN {$column} TEXT");
 }
-foreach (['Web_Promo_Banner', 'Web_Promo_Sale'] as $websiteTable) {
+foreach (['Web_Promo_WelCome', 'Web_Promo_Sale'] as $websiteTable) {
     $websiteColumnsQuery = $db->query("PRAGMA table_info({$websiteTable})");
     if ($websiteColumnsQuery === false) throw new RuntimeException("Unable to inspect demo {$websiteTable}");
     $websiteColumns = $websiteColumnsQuery->fetchAll(PDO::FETCH_COLUMN, 1);
@@ -65,5 +65,16 @@ foreach ($products as $index => [$name, $category, $unit, $price]) {
 }
 $typeQuery->execute(['ประเภทตัวอย่างที่ยังไม่มีสินค้า']);
 $unitQuery->execute(['หน่วยตัวอย่างที่ยังไม่มีสินค้า']);
+// Sample customers covering each level code (Customer_Lavel) and its name (Customer_Type).
+$customerQuery = $db->prepare('INSERT OR IGNORE INTO Customer (Customer_Id, Customer_Name, Customer_Type, Customer_Lavel) VALUES (?, ?, ?, ?)');
+foreach ([
+    ['C-0001', 'ลูกค้าปลีกตัวอย่าง', 'ขายปลีก', '1'],
+    ['C-0002', 'ร้านวัสดุตัวอย่าง', 'ขายส่ง 1', '2'],
+    ['C-0003', 'ผู้รับเหมาตัวอย่าง', 'ขายส่ง 2', '3'],
+    ['C-0004', 'ลูกค้าพิเศษตัวอย่าง', 'พิเศษ', '4'],
+    ['C-0005', 'ลูกค้ายังไม่ระบุระดับ', null, null],
+] as $customer) {
+    $customerQuery->execute($customer);
+}
 $db->commit();
 fwrite(STDOUT, "Sample catalog prepared. Create a demo user with backend/bin/create-demo-user.php.\n");

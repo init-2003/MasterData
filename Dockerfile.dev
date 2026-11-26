@@ -1,11 +1,11 @@
 FROM php:8.5-cli-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg libonig-dev libsqlite3-dev libpng-dev libjpeg62-turbo-dev libwebp-dev unixodbc-dev unzip \
+    ca-certificates curl gnupg libonig-dev libsqlite3-dev libpng-dev libjpeg62-turbo-dev libwebp-dev libavif-dev unixodbc-dev unzip \
     && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
     && echo 'deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main' > /etc/apt/sources.list.d/microsoft-prod.list \
     && apt-get update && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
-    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-configure gd --with-jpeg --with-webp --with-avif \
     && docker-php-ext-install mbstring pdo_sqlite gd \
     && pecl install pdo_sqlsrv-5.13.3 \
     && docker-php-ext-enable pdo_sqlsrv \
@@ -13,4 +13,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
-RUN printf 'upload_max_filesize=5M\npost_max_size=6M\n' > /usr/local/etc/php/conf.d/uploads.ini
+RUN printf 'upload_max_filesize=12M\npost_max_size=13M\nmemory_limit=256M\n' > /usr/local/etc/php/conf.d/uploads.ini

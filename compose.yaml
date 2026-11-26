@@ -23,7 +23,7 @@ services:
     volumes:
       - .:/app
       - frontend_modules:/app/frontend/node_modules
-    command: sh -c "corepack enable && corepack prepare pnpm@11 --activate && pnpm install --frozen-lockfile && pnpm exec vite build --watch"
+    command: sh -c "corepack enable && corepack prepare pnpm@11 --activate && pnpm install --frozen-lockfile && pnpm run build && pnpm exec vite build --config vite.admin.config.js --watch"
 
 volumes:
   backend_vendor:

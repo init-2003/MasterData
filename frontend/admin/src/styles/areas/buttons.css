@@ -1,0 +1,68 @@
+/* Buttons used across the app, including website image and product image actions. */
+.button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; gap: .65rem; padding: .55rem 1.2rem; border-radius: var(--control-radius); font-weight: 600; transition: transform 200ms, background-color 200ms; }
+.button:disabled { opacity: .65; }
+.button-primary { background: var(--color-action); color: white; }
+.button-primary:not(:disabled):hover { background: var(--color-action-hover); }
+.button-muted { color: var(--color-ink); background: var(--color-canvas); }
+.button-muted:not(:disabled):hover { background: var(--surface-hover); }
+.button svg { width: 1.2rem; height: 1.2rem; }
+.website-image-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.website-image-empty .website-image-action { display: inline-flex; align-items: center; gap: .4rem; }
+.website-image-empty .website-image-action svg { width: 1.125rem; height: 1.125rem; }
+.website-image-grid[data-view='list'] :is(.website-image-card-actions, .website-image-order-controls) { grid-area: actions; margin: 0; }
+.website-image-action, .website-image-grid button, .website-image-buttons button { min-height: 44px; border-radius: var(--control-radius); padding: .5rem 1rem; font-weight: 600; transition: background-color 200ms, transform 200ms; }
+.website-image-action, .website-image-header .website-image-buttons button { min-height: var(--control-height); }
+.website-image-grid button, .website-image-buttons button { background: var(--color-canvas); }
+.website-image-grid button:not(:disabled):hover, .website-image-buttons button:not(:disabled):hover { background: var(--surface-hover); }
+.website-image-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: fit-content; max-width: 100%; }
+.website-image-card-actions button { align-self: stretch; }
+.flat-dialog .swal2-actions .button { padding: .5rem 1rem; font-size: .875rem; }
+.note-actions .button { min-width: 5.5rem; }
+.button-danger { background: var(--danger-solid); color: white; }
+.button-danger:hover { background: var(--danger-solid-hover); }
+.image-select { display: inline-block; margin-top: .75rem; color: var(--action-text); font-weight: 700; cursor: pointer; }
+.image-select:has(+ input:focus-visible) { outline: 2px solid var(--action-text); outline-offset: 4px; }
+.detail-header-actions .button { font-size: .875rem; white-space: nowrap; }
+.detail-header-actions .button-muted { background: var(--surface); }
+.detail-header-actions .button-muted:not(:disabled):hover { background: var(--color-canvas); }
+.image-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .625rem; }
+.image-actions .button, .image-actions .image-select { margin: 0; flex: none; display: inline-flex; align-items: center; gap: .375rem; min-height: 2.35rem; padding: .35rem .85rem; border-radius: .75rem; font-size: .84rem; font-weight: 700; line-height: 1.3; text-decoration: none; cursor: pointer; transition: background-color 140ms ease, color 140ms ease; }
+.image-actions svg { width: .95rem; height: .95rem; flex: none; }
+.image-actions .image-select:hover { background: var(--surface-tint-strong); }
+.image-actions .image-select.is-disabled { opacity: .5; cursor: not-allowed; }
+.image-actions .button-muted { background: var(--color-canvas); color: var(--color-ink); }
+.image-actions .button-muted:not(:disabled):hover { background: var(--surface-hover); transform: none; }
+.image-actions .button-danger { background: var(--danger-bg); color: var(--text-danger); }
+.image-actions .button-danger:not(:disabled):hover { background: var(--danger-bg-strong); transform: none; }
+.image-save-actions { justify-content: flex-start; margin-top: .5rem; padding-top: .25rem; border-top: 1px solid var(--color-hairline); }
+.image-save-actions .button { min-width: 5.5rem; padding: .4rem 1rem; border-radius: var(--ui-radius); text-decoration: none; }
+.image-save-actions .button-muted { background: var(--color-canvas); color: var(--color-ink); }
+.image-save-actions .button-primary { background: var(--color-action); color: #fff; }
+.image-save-actions .button-muted:not(:disabled):hover { background: var(--surface-hover); }
+.image-save-actions .button-primary:not(:disabled):hover { background: var(--color-action-hover); }
+.note-section .button, .detail-footer .button { min-height: 2.75rem; border-radius: var(--ui-radius); font-size: .9375rem; }
+.price-editor .note-actions .button { min-height: 2.75rem; font-size: .9375rem; }
+.note-section .button svg { width: 1rem; height: 1rem; }
+@media (max-width: 400px) { .image-select { padding-inline: .55rem; font-size: .8rem; } }
+.button, .website-image-action, .website-image-grid button, .website-image-buttons button { min-height: var(--control-height); padding: .3rem 1.1rem; border: 1.5px solid transparent; border-radius: 999px; font-size: .875rem; font-weight: 700; line-height: 1.3; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .button:not(:disabled):hover, .website-image-action:not(:disabled):hover { transform: none; }
+}
+.button-primary, .website-image-action, .website-image-buttons .website-image-action { border-color: var(--color-action); }
+.button-muted, .website-image-grid button, .website-image-buttons button,
+.detail-header-actions .button-muted, .image-actions .button-muted, .image-save-actions .button-muted { border: 1.5px solid var(--action-text); background: var(--surface); color: var(--action-text); }
+.button-muted:not(:disabled):hover, .website-image-grid button:not(:disabled):hover, .website-image-buttons button:not(:disabled):hover,
+.detail-header-actions .button-muted:not(:disabled):hover, .image-actions .button-muted:not(:disabled):hover, .image-save-actions .button-muted:not(:disabled):hover { background: var(--color-blue-surface); }
+.website-image-action, .website-image-buttons .website-image-action { background: var(--color-action); color: #fff; }
+.website-image-action:not(:disabled):hover, .website-image-buttons .website-image-action:not(:disabled):hover { background: var(--color-action-hover); }
+.website-image-grid .website-image-delete { border-color: var(--text-danger); color: var(--text-danger); }
+.website-image-grid .website-image-delete:not(:disabled):hover { background: var(--danger-bg); }
+.image-actions .button, .image-actions .image-select, .image-save-actions .button, .note-section .button, .detail-footer .button, .price-editor .note-actions .button { min-height: var(--control-height); border-radius: 999px; font-size: .84rem; }
+.image-actions .image-select { border: 1.5px solid var(--action-text); background: var(--surface); color: var(--action-text); }
+.website-image-header .website-image-buttons, .website-image-buttons { gap: .5rem; }
+.website-image-header .website-image-buttons button { min-height: var(--control-height); }
+.website-image-card-actions { gap: .5rem; }
+
+@media (min-width: 901px) {
+  .website-image-grid button { min-height: 2rem; padding-block: .2rem; }
+}

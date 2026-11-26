@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS units (
     name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS Web_Promo_Banner (
+CREATE TABLE IF NOT EXISTS Web_Promo_WelCome (
     Promo_Id INTEGER PRIMARY KEY,
     Promo_Title TEXT,
     Image_Url TEXT NOT NULL,
@@ -59,4 +59,25 @@ CREATE TABLE IF NOT EXISTS Web_Carousel (
     Is_Active INTEGER DEFAULT 1,
     Created_At TEXT DEFAULT CURRENT_TIMESTAMP,
     Updated_At TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Web_Promotion_Level (
+    Auto_ID INTEGER PRIMARY KEY,
+    Customer_Lavel TEXT DEFAULT '',
+    Level_Name TEXT,
+    Image_Url TEXT,
+    Status TEXT DEFAULT 'Y',
+    Sort_Order INTEGER,
+    Remark TEXT,
+    Create_Date TEXT DEFAULT CURRENT_TIMESTAMP,
+    Link_Url TEXT DEFAULT '',
+    Is_Active INTEGER NOT NULL DEFAULT 1,
+    Updated_At TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Customer (
+    Customer_Id TEXT PRIMARY KEY,
+    Customer_Name TEXT,
+    Customer_Type TEXT,
+    Customer_Lavel TEXT
 );

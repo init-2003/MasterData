@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+
+/* Order matters: later files win when two rules are equally specific. */
+@import './areas/theme.css';
+@import './areas/base.css';
+@import './areas/shell.css';
+@import './areas/buttons.css';
+@import './areas/forms.css';
+@import './areas/products.css';
+@import './areas/website-images.css';
+@import './areas/drawer.css';
+@import './areas/feedback.css';
+@import './areas/signin.css';
+@import './areas/motion.css';

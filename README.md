@@ -1,8 +1,28 @@
 # SPTC. Master Data
 
-โค้ด backend ใน `backend/src/` แยกเป็น `Controllers/` สำหรับคำขอบัญชีและสินค้า, `Models/` สำหรับอ่านและบันทึกฐานข้อมูล, `Services/` สำหรับบัญชี session และรูป, `Middleware/` สำหรับตรวจ CSRF และ `Core/` สำหรับ API และการตั้งค่าฐานข้อมูล โดย `backend/routes/api.php` ระบุ action และ HTTP method
+โค้ด backend ใน `backend/src/` แยกเป็น `Controllers/Admin/` และ `Controllers/Customer/` ตามโดเมน, `Models/` สำหรับอ่านและบันทึกฐานข้อมูล, `Services/` สำหรับบัญชี session และรูป, `Middleware/` สำหรับตรวจ CSRF และ `HostGuard` และ `Core/` สำหรับ API และการตั้งค่าฐานข้อมูล โดย `backend/routes/admin.php` และ `backend/routes/customer.php` กำหนด HTTP method, controller และ handler ของแต่ละ action
 
-โค้ด frontend ใน `frontend/src/` ใช้ React และ Tailwind CSS โดย `main.jsx` เริ่มแอปและ `App.jsx` สร้าง store; `routes/` เลือกหน้าตามสถานะบัญชี, `pages/` เก็บหน้าจอ, `layouts/` เก็บโครงหน้า, `components/` เก็บส่วน UI, `services/` จัดการ API และรูปฉบับร่าง, `store/` เก็บ state และ logic, `utils/` เก็บตัวช่วย และ `styles/` เก็บสไตล์ร่วม ส่วน `hooks/` และ `constants/` เตรียมไว้ใช้เมื่อมีความจำเป็น
+โค้ด frontend ใน `frontend/` แยกออกเป็น 3 ส่วน:
+- `frontend/customer/` — หน้าลูกค้า (สไลด์ แบนเนอร์ โปรโมชัน และค้นหา/ดูสินค้า) build ลง `public/customer/`
+- `frontend/admin/` — หน้าจัดการระบบ Master Data (Login, สินค้า, ภาพเว็บไซต์) build ลง `public/admin/`
+- `frontend/shared/` — ไฟล์ที่ใช้ร่วมกัน (ตัวช่วยจัดรูปแบบราคา/ตัวเลข และโลโก้)
+
+### Domain-based Routing (4 โดเมน: เว็บหลัก, `www`, `api`, `admin`)
+
+ระบบแยก Static Frontend ออกจาก Backend API ออกเป็น 3 Document Root:
+- **`public/customer/`** — เว็บไซต์หลัก (`https://example.com` และ `https://www.example.com` → 301 Redirect ไปโดเมนหลัก, Static ไม่มี PHP)
+- **`public/api/`** — Backend API จุดเดียว (`https://api.example.com`, PHP 8.5 รับ `/customer/*`, `/admin/*`, `/website-images/*`, `/product-images/*` พร้อม CORS + HostGuard + Session `Path=/admin`)
+- **`public/admin/`** — ระบบหลังบ้าน (`https://admin.example.com`, Static ไม่มี PHP + `X-Robots-Tag: noindex, nofollow`)
+
+- **พัฒนาในเครื่อง (`.\deploy\start-local.ps1` หรือ Docker)**:
+  - เว็บไซต์หลัก: `http://shop.localhost:8094/` (`http://www.shop.localhost:8094/` จะ 301 ไป `shop.localhost`)
+  - Backend API: `http://api.localhost:8094/`
+  - ระบบหลังบ้าน: `http://admin.localhost:8094/`
+- **ขึ้นโฮสต์จริง (IIS / Apache)**:
+  - ตั้ง `API_HOSTS`, `CUSTOMER_ORIGINS`, `ADMIN_ORIGINS` และ `APP_PUBLIC_ORIGIN='https://api.example.com'` ใน `.env`
+  - สั่ง build พร้อมระบุ API URL จริง: `$env:VITE_API_BASE_URL='https://api.example.com'; pnpm --dir frontend build` (จะอัปเดต CSP `connect-src` ให้ตรงกับโดเมน API อัตโนมัติ)
+  - บน **IIS**: สร้าง 3 Sites (`example.com` + `www.example.com` → `public/customer/`, `api.example.com` → `public/api/` พร้อม PHP FastCGI + URL Rewrite, `admin.example.com` → `public/admin/`)
+  - บน **Apache**: ตั้ง 3 VirtualHosts ตามตัวอย่างใน `deploy/apache-vhosts.conf.example`
 
 เว็บสำหรับเข้าสู่ระบบด้วยบัญชีผู้ใช้ และค้นหาข้อมูลหลักสินค้า หน้าจอภาษาไทยใช้ Flat Design ตามสเปก พร้อมรองรับจอมือถือ
 
@@ -25,7 +45,7 @@
 
 ## ติดตั้งและตรวจการเชื่อมต่อ
 
-1. เตรียม PHP 8.5, Composer, Node.js และ pnpm 11 สำหรับ build ฝั่งหน้าเว็บ ติดตั้ง Microsoft ODBC Driver 18 และเปิด `pdo_sqlsrv` 5.13 สำหรับ PHP รุ่นย่อย สถาปัตยกรรม และ Thread Safety ที่ตรงกับเว็บเซิร์ฟเวอร์ เปิด PHP GD ที่รองรับ JPEG, PNG และ WebP สำหรับรูปสินค้า
+1. เตรียม PHP 8.5, Composer, Node.js และ pnpm 11 สำหรับ build ฝั่งหน้าเว็บ ติดตั้ง Microsoft ODBC Driver 18 และเปิด `pdo_sqlsrv` 5.13 สำหรับ PHP รุ่นย่อย สถาปัตยกรรม และ Thread Safety ที่ตรงกับเว็บเซิร์ฟเวอร์ เปิด PHP GD ที่รองรับ JPEG, PNG, WebP และ AVIF สำหรับรูปสินค้าและภาพเว็บไซต์
 2. ติดตั้ง dependencies และ build จากโฟลเดอร์โปรเจกต์
 
    ```powershell
@@ -48,26 +68,43 @@
 ## เริ่มใช้งาน
 
 สินค้าแต่ละรายการมีรูปได้สองช่อง โดยแต่ละช่องเลือกบันทึกได้ 2 แบบลงใน `Trade_Image1` และ `Trade_Image2` (คอลัมน์ `VARCHAR(200)` เดิม):
-1. **อัปโหลดไฟล์**: เก็บรูปจริงใน `storage/product-images/<รหัสสินค้า>/` โดยใช้ชื่อไฟล์เดิมและเก็บตามชนิดไฟล์ต้นฉบับ JPEG, PNG หรือ WebP (หากชื่อซ้ำเติม `-1`, `-2` ตามลำดับ) อักขระในรหัสสินค้าหรือชื่อไฟล์ที่ Windows ไม่รองรับจะถูกเข้ารหัส เช่น รหัส `011003.` เป็นโฟลเดอร์ `011003%2E` จากนั้นระบบสร้างลิงก์เต็มแบบไม่มี `api.php` จาก `APP_PUBLIC_ORIGIN` และ `APP_BASE_PATH` เช่น `https://assets.example.com/master-data/product-images/SP-0001/tile.jpg` และตรวจความยาวไม่เกินขนาดคอลัมน์ (`200` ไบต์) ก่อนบันทึก
+1. **อัปโหลดไฟล์**: เก็บรูปจริงใน `storage/product-images/<รหัสสินค้า>/` โดยใช้ชื่อไฟล์เดิมและเก็บตามชนิดไฟล์ต้นฉบับ JPEG, PNG, WebP หรือ AVIF (หากชื่อซ้ำเติม `-1`, `-2` ตามลำดับ) อักขระในรหัสสินค้าหรือชื่อไฟล์ที่ Windows ไม่รองรับจะถูกเข้ารหัส เช่น รหัส `011003.` เป็นโฟลเดอร์ `011003%2E` จากนั้นระบบสร้างลิงก์เต็มแบบไม่มี `api.php` จาก `APP_PUBLIC_ORIGIN` และ `APP_BASE_PATH` เช่น `https://assets.example.com/master-data/product-images/SP-0001/tile.jpg` และตรวจความยาวไม่เกินขนาดคอลัมน์ (`200` ไบต์) ก่อนบันทึก
 2. **ใส่ลิงก์ภาพ**: กรอกลิงก์ `http://` หรือ `https://` พร้อมดูตัวอย่างก่อนบันทึกได้ ระบบตรวจรูปแบบลิงก์ ความยาวตามขนาดคอลัมน์ (`200` ไบต์) และเทียบชื่อโดเมนแบบตรงตัวตาม `WEBSITE_ALLOWED_IMAGE_HOSTS` เมื่อมีการตั้งค่า (เว้นว่าง = ใส่ลิงก์ได้ทันที)
 
 ระบบอื่นสามารถแสดงรูปสินค้าที่อัปโหลดโดยไม่ต้องเข้าสู่ระบบผ่านลิงก์ `/product-images/<รหัสสินค้า>/<ชื่อไฟล์>` (ใช้ IIS URL Rewrite ใน `public/web.config` หรือ Apache `mod_rewrite` ใน `public/.htaccess` / `deploy/apache.conf.example`) และยังคงรองรับ `api.php?path=` สำหรับพาธเดิมที่บันทึกไว้ก่อนหน้า ระบบจะส่งเฉพาะไฟล์ที่อ้างอิงอยู่ใน `Trade_Image1` หรือ `Trade_Image2` ปัจจุบัน เมื่อลงรูปใหม่หรือลบออก ลิงก์เดิมจะคืน `404` ทันที
 
 สำหรับ path เดิมที่ขึ้นต้นด้วย `storage/product-images/` ใช้ `php backend/bin/migrate-image-paths.php` เพื่อตรวจจำนวน path ที่แปลงได้ และเติม `--apply` เมื่อต้องการแปลงจริง สคริปต์ตรวจว่าไฟล์เดิมอยู่ครบ สำรองค่าเดิมใน `storage/image-path-backups/` และอัปเดตภายใน transaction โดยไม่ย้ายไฟล์ ระบบยังรองรับ URL รูปที่ใช้ prefix เดิม
 
-รูป demo แยกไว้ใน `var/demo/product-images/` นอก document root ไฟล์รูปเดิมแบบ hash ยังคงเปิดดูเป็นรูปช่องแรกได้หากยังไม่มี path ในฐานข้อมูล ให้บัญชีที่รัน PHP มีสิทธิ์สร้างและเขียนโฟลเดอร์รูป สำรองโฟลเดอร์รูปพร้อมฐานข้อมูล และไม่ลบเมื่อ deploy IIS/PHP ต้องตั้ง `upload_max_filesize=5M` และ `post_max_size=6M` หรือมากกว่า พร้อมกำหนด IIS request filtering ให้รองรับขนาดคำขอ รูปต้นฉบับ JPEG, PNG หรือ WebP จำกัด 5 MB และขนาดไม่เกิน 4096 พิกเซลต่อด้าน ระบบบันทึกเป็น PNG
+รูป demo แยกไว้ใน `var/demo/product-images/` นอก document root ไฟล์รูปเดิมแบบ hash ยังคงเปิดดูเป็นรูปช่องแรกได้หากยังไม่มี path ในฐานข้อมูล ให้บัญชีที่รัน PHP มีสิทธิ์สร้างและเขียนโฟลเดอร์รูป สำรองโฟลเดอร์รูปพร้อมฐานข้อมูล และไม่ลบเมื่อ deploy IIS/PHP ต้องตั้ง `upload_max_filesize=12M` และ `post_max_size=13M` หรือมากกว่า และ `memory_limit=256M` หรือมากกว่า พร้อมกำหนด IIS request filtering ให้รองรับขนาดคำขอ รูปต้นฉบับ JPEG, PNG, WebP หรือ AVIF จำกัด 12 MB และขนาดไม่เกิน 8,192 พิกเซลต่อด้าน และ 36 ล้านพิกเซลรวม ระบบเข้ารหัสและบันทึกตามชนิดภาพต้นฉบับ
 
-### ภาพแบนเนอร์โปรโมชัน ภาพโปรโมชันลดราคา และภาพสไลด์
+### แบนเนอร์ต้อนรับ โปรโมชันลดราคา และภาพสไลด์
 
-ทั้งสามเมนูใช้ตารางเดิมใน `DBITManagement` ได้แก่ `dbo.Web_Promo_Banner`, `dbo.Web_Promo_Sale` และ `dbo.Web_Carousel` หากบัญชีบริการยังไม่มีสิทธิ์จัดการรายการ ให้ผู้ดูแล SQL Server รัน [database/website-images.sql](database/website-images.sql) ในโหมด Demo ให้รัน `backend/bin/seed-demo.php` เพื่อเพิ่มสามตารางใน SQLite
+ทั้งสามเมนูใช้ตารางเดิมใน `DBITManagement` ได้แก่ `dbo.Web_Promo_WelCome` (แบนเนอร์ต้อนรับ, `collection=promo-banner`), `dbo.Web_Promo_Sale` และ `dbo.Web_Carousel` หากบัญชีบริการยังไม่มีสิทธิ์จัดการรายการ ให้ผู้ดูแล SQL Server รัน [database/website-images.sql](database/website-images.sql) ในโหมด Demo ให้รัน `backend/bin/seed-demo.php` เพื่อเพิ่มสามตารางใน SQLite
 
 ผู้ใช้ที่เข้าสู่ระบบสามารถจัดการทั้งสามเมนูได้ผ่าน Session เดิม รูปใช้เงื่อนไขการอัปโหลดเดียวกับรูปสินค้า และจัดเก็บใน `storage/website-images/` หรือ `var/demo/website-images/` สำหรับ Demo ให้บัญชี PHP มีสิทธิ์เขียน และสำรองโฟลเดอร์รูปพร้อมฐานข้อมูล รายการใหม่เริ่มต้นเป็นปิดการแสดงและเรียงตามค่าลำดับจากน้อยไปมาก สถานะเปิดการแสดงบันทึกอยู่ในตารางสำหรับใช้งานต่อ
 
 รูปในเมนูเว็บไซต์เลือกบันทึกได้ 2 แบบลงในคอลัมน์ `Image_Url` เดิมของทั้งสามตาราง:
-1. **อัปโหลดไฟล์**: ใช้ชื่อไฟล์เดิมและเก็บตามชนิด JPEG, PNG หรือ WebP ใน `storage/website-images/<collection>/` หากชื่อซ้ำในเมนูเดียวกัน ระบบเติม `-1`, `-2` ก่อนนามสกุล แล้วสร้างลิงก์เต็มแบบไม่มี `api.php` จาก `APP_PUBLIC_ORIGIN` และ `APP_BASE_PATH` ใน `.env` เช่น `https://assets.example.com/master-data/website-images/promo-banner/banner.jpg` เพื่อบันทึกลง `Image_Url` เว็บปลายทางสามารถเปิดลิงก์นี้ได้โดยไม่ต้องเข้าสู่ระบบเฉพาะรายการที่เปิดการแสดง (`Is_Active = 1`) ส่วนหน้าจัดการยังดูตัวอย่างของรายการที่ปิดการแสดงได้ผ่าน Session (บน IIS ต้องเปิดใช้ IIS URL Rewrite module ร่วมกับ `public/web.config` และบน Apache ต้องเปิด `mod_rewrite` ร่วมกับ `public/.htaccess` หรือ `deploy/apache.conf.example`)
-2. **ใส่ลิงก์ภาพ**: กรอกลิงก์ `http://` หรือ `https://` ของภาพโดยตรงและดูตัวอย่างก่อนบันทึกได้ สำหรับ `dbo.Web_Promo_Banner` และ `dbo.Web_Promo_Sale` ระบบจะบันทึกลิงก์ลงคอลัมน์ `Link_Url` และตั้ง `Image_Url` เป็นสตริงว่าง `''` (และล้าง `Link_Url` เป็น `NULL` เมื่อเปลี่ยนกลับไปอัปโหลดไฟล์) ส่วน `dbo.Web_Carousel` ที่ไม่มีคอลัมน์ `Link_Url` จะบันทึกลง `Image_Url` ตามเดิม ระบบตรวจรูปแบบลิงก์และความยาวตามขนาดคอลัมน์ของแต่ละตารางก่อนบันทึก หากต้องการจำกัดเฉพาะบางโดเมนสามารถกำหนด `WEBSITE_ALLOWED_IMAGE_HOSTS` (คั่นด้วยจุลภาค) ใน `.env` เพิ่มได้ โดยระบบจะเทียบชื่อโดเมนแบบตรงตัวเท่านั้น เช่น `cdn.example.com` (ไม่รวม subdomain หรือ wildcard) และหากเว้นว่างไว้จะอนุญาตทุกลิงก์ `http://` / `https://` ที่รูปแบบถูกต้อง
+1. **อัปโหลดไฟล์**: ใช้ชื่อไฟล์เดิมและเก็บตามชนิด JPEG, PNG, WebP หรือ AVIF ใน `storage/website-images/<collection>/` หากชื่อซ้ำในเมนูเดียวกัน ระบบเติม `-1`, `-2` ก่อนนามสกุล แล้วสร้างลิงก์เต็มแบบไม่มี `api.php` จาก `APP_PUBLIC_ORIGIN` และ `APP_BASE_PATH` ใน `.env` เช่น `https://assets.example.com/master-data/website-images/promo-banner/banner.jpg` เพื่อบันทึกลง `Image_Url` เว็บปลายทางสามารถเปิดลิงก์นี้ได้โดยไม่ต้องเข้าสู่ระบบเฉพาะรายการที่เปิดการแสดง (`Is_Active = 1`) ส่วนหน้าจัดการยังดูตัวอย่างของรายการที่ปิดการแสดงได้ผ่าน Session (บน IIS ต้องเปิดใช้ IIS URL Rewrite module ร่วมกับ `public/web.config` และบน Apache ต้องเปิด `mod_rewrite` ร่วมกับ `public/.htaccess` หรือ `deploy/apache.conf.example`)
+2. **ใส่ลิงก์ภาพ**: กรอกลิงก์ `http://` หรือ `https://` ของภาพโดยตรงและดูตัวอย่างก่อนบันทึกได้ สำหรับ `dbo.Web_Promo_WelCome` และ `dbo.Web_Promo_Sale` ระบบจะบันทึกลิงก์ลงคอลัมน์ `Link_Url` และตั้ง `Image_Url` เป็นสตริงว่าง `''` (และล้าง `Link_Url` เป็น `NULL` เมื่อเปลี่ยนกลับไปอัปโหลดไฟล์) ส่วน `dbo.Web_Carousel` ที่ไม่มีคอลัมน์ `Link_Url` จะบันทึกลง `Image_Url` ตามเดิม ระบบตรวจรูปแบบลิงก์และความยาวตามขนาดคอลัมน์ของแต่ละตารางก่อนบันทึก หากต้องการจำกัดเฉพาะบางโดเมนสามารถกำหนด `WEBSITE_ALLOWED_IMAGE_HOSTS` (คั่นด้วยจุลภาค) ใน `.env` เพิ่มได้ โดยระบบจะเทียบชื่อโดเมนแบบตรงตัวเท่านั้น เช่น `cdn.example.com` (ไม่รวม subdomain หรือ wildcard) และหากเว้นว่างไว้จะอนุญาตทุกลิงก์ `http://` / `https://` ที่รูปแบบถูกต้อง
 
 ระบบยังรองรับพาธรูปเก่าที่บันทึกไว้แล้วทั้งแบบ `website-images/<collection>/<filename>` และแบบชื่อไฟล์เปล่าเดิม (ตั้ง `WEBSITE_LEGACY_IMAGE_BASE_URL` เพื่อแสดงตัวอย่างในหน้าจัดการ เช่น `https://example.com/images/promotions`) การเปลี่ยนรูปหรือลบรายการจะเก็บไฟล์เดิมไว้เผื่อมีการอ้างอิงจากส่วนอื่น แต่ลิงก์สาธารณะจะเปิดไม่ได้ทันทีเมื่อรายการถูกปิดการแสดง ถูกแทนที่ หรือถูกลบ การลบรายการต้องใช้สิทธิ์ `DELETE` บนตารางของเมนูตามสคริปต์ให้สิทธิ์ข้างต้น
+
+### โปรโมชันตามระดับ
+
+เมนูนี้ใช้ตารางเดิม `dbo.Web_Promotion_Level` ภาพหนึ่งรายการผูกกับระดับลูกค้าหนึ่งระดับ รายการระดับอ่านจาก `dbo.Customer` โดยแสดงชื่อจาก `Customer_Type` และบันทึกรหัสจาก `Customer_Lavel` (เช่น `2` = ขายส่ง 1) ระบบบันทึกชื่อ `Customer_Type` ณ เวลาบันทึกลง `Level_Name` และตรวจว่ารหัสระดับยังมีอยู่ใน `dbo.Customer` ก่อนบันทึก (ตอบ `400 invalid_level` หากไม่พบ) สคริปต์ [database/website-images.sql](database/website-images.sql) ให้สิทธิ์จัดการตารางนี้และอ่านเฉพาะคอลัมน์ `Customer_Lavel`, `Customer_Type` ของ `dbo.Customer`
+
+| คอลัมน์ | การใช้งาน |
+| --- | --- |
+| `Auto_ID` | คีย์รายการ |
+| `Customer_Lavel`, `Level_Name` | รหัสและชื่อระดับลูกค้า |
+| `Image_Url` | **ชื่อไฟล์เท่านั้น** (ตามข้อมูลเดิม) ไฟล์อยู่ใน `storage/website-images/promotion-level/` หรือลิงก์ภาพภายนอกเมื่อเลือกใส่ลิงก์ |
+| `Remark` | คำอธิบายภาพ (ไม่บังคับ) |
+| `Is_Active` | เปิด/ปิดการแสดง (`Status` คงค่าเดิม ไม่ได้ใช้ในเมนูนี้) |
+| `Sort_Order` | ลำดับภายในระดับเดียวกัน รายการใหม่หรือย้ายระดับจะต่อท้ายระดับนั้น |
+
+หน้าจัดการกรองรายการตามระดับได้ (เริ่มที่ "ทุกระดับ") และแก้ไขลำดับได้เมื่อเลือกระดับใดระดับหนึ่ง เพราะลำดับบันทึกแยกตามระดับ การอัปโหลดในเมนูนี้ไม่ต้องตั้ง `APP_PUBLIC_ORIGIN` เพราะบันทึกเฉพาะชื่อไฟล์ ส่วนรูปของรายการเดิมที่ระบบก่อนหน้าอัปโหลดไว้ ให้คัดลอกไฟล์ (ชื่อเดิม) มาไว้ใน `storage/website-images/promotion-level/` หากยังไม่ได้คัดลอก หน้าจัดการจะแสดงตัวอย่างจาก `WEBSITE_LEGACY_IMAGE_BASE_URL` แทน
+
+ลิงก์ `/website-images/promotion-level/<ชื่อไฟล์>` เปิดได้โดยไม่ต้องเข้าสู่ระบบเฉพาะรายการที่เปิดการแสดง เหมือนเมนูอื่น การแสดงภาพเฉพาะลูกค้าตามระดับบนหน้าลูกค้ายังไม่ได้ทำ (`/customer/storefront` ยังไม่ส่งภาพของเมนูนี้)
 
 ### Docker สำหรับพัฒนา
 
@@ -151,3 +188,7 @@ php backend/bin/seed-demo.php
 (Read-Host 'ตั้งรหัสผ่าน Demo อย่างน้อย 12 ตัว' -MaskInput) | php backend/bin/create-demo-user.php demo.operator
 .\deploy\start-local.ps1
 ```
+
+### บัญชีลูกค้าใน dbo.Customer
+
+`Cus_User` และ `Cus_SPass` (varchar(50)) มีอยู่แล้วใน `dbo.Customer` ค่า `Cus_User` ที่ไม่ว่างต้องไม่ซ้ำกันตาม unique index `UX_Customer_Cus_User` ใน [database/customer-user-unique.sql](database/customer-user-unique.sql) (ยกเว้นค่าว่างและ `NULL` เพราะค่าเริ่มต้นของคอลัมน์เป็น `''`) เป็น filtered index โปรแกรมที่ INSERT/UPDATE ตารางนี้จึงต้องเชื่อมต่อด้วย `ANSI_NULLS`, `ANSI_WARNINGS`, `QUOTED_IDENTIFIER` เปิดอยู่ (ค่าเริ่มต้นของ ODBC/SqlClient) ยกเลิกได้ด้วย `DROP INDEX UX_Customer_Cus_User ON dbo.Customer`

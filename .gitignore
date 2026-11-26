@@ -12,3 +12,13 @@
 /storage/image-path-backups/
 /storage/website-images/
 /.phpunit.cache/
+
+# Frontend build output (web.config and .htaccess in these folders stay tracked)
+/public/admin/assets/
+/public/admin/index.html
+/public/admin/theme-init.js
+/public/customer/assets/
+/public/customer/index.html
+
+# Local frontend verification scratch folder
+/.verify-frontend/

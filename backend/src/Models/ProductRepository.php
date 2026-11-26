@@ -88,6 +88,134 @@ final class ProductRepository
         return ['items' => $items, 'page' => $page, 'pageSize' => $size, 'total' => $total, 'totalPages' => $pages];
     }
 
+    /**
+     * @return array{
+     *     items: list<array{id: string|null, code: string|null, name: string|null, category: string|null, unit: string|null, price: string|null, image1: string|null, image2: string|null}>,
+     *     page: int,
+     *     pageSize: int,
+     *     total: int,
+     *     totalPages: int,
+     * }
+     */
+    public function publicSearch(string $search, int $page, string $type = '', string $selectedUnit = '', int $pageSize = 24): array
+    {
+        $demo = $this->config->demo();
+        $table = $demo ? '[products]' : $this->configuredTable();
+        $id = $this->column('ID', 'id', true);
+        $code = $this->column('CODE', 'code', true);
+        $name = $this->column('NAME', 'name', true);
+        $barcode = $this->column('BARCODE', 'barcode');
+        $category = $this->column('CATEGORY', 'category');
+        $unit = $this->column('UNIT', 'unit');
+        $price = $this->column('PRICE', 'price');
+        $image1 = $demo ? '[image1]' : '[Trade_Image1]';
+        $image2 = $demo ? '[image2]' : '[Trade_Image2]';
+        $cast = $demo ? 'TEXT' : 'NVARCHAR(4000)';
+        $filters = [];
+        $pattern = '%' . self::escapeLike($search) . '%';
+        if ($search !== '') {
+            foreach (array_filter([$code, $name, $barcode]) as $column) {
+                $filters[] = "CAST({$column} AS {$cast}) LIKE ? ESCAPE '!'";
+            }
+        }
+
+        $clauses = $filters === [] ? [] : ['(' . implode(' OR ', $filters) . ')'];
+        $parameters = array_fill(0, count($filters), $pattern);
+        if ($type !== '') {
+            if ($category === null) throw new RuntimeException('Product category is not configured');
+            $clauses[] = "LTRIM(RTRIM({$category})) = ?";
+            $parameters[] = $type;
+        }
+        if ($selectedUnit !== '') {
+            if ($unit === null) throw new RuntimeException('Product unit is not configured');
+            $clauses[] = "LTRIM(RTRIM({$unit})) = ?";
+            $parameters[] = $selectedUnit;
+        }
+        $where = $clauses === [] ? '' : ' WHERE ' . implode(' AND ', $clauses);
+        $size = min(max(1, $pageSize), 60);
+        $count = $demo ? 'COUNT(*)' : 'COUNT_BIG(*)';
+        $countQuery = $this->database->prepare("SELECT {$count} FROM {$table}{$where}");
+        $countQuery->execute($parameters);
+        $total = (int) $countQuery->fetchColumn();
+        $pages = max(1, (int) ceil($total / $size));
+        $page = min(max(1, $page), $pages);
+        $offset = ($page - 1) * $size;
+        $pagination = $demo ? "LIMIT {$size} OFFSET {$offset}" : "OFFSET {$offset} ROWS FETCH NEXT {$size} ROWS ONLY";
+        $category ??= 'NULL';
+        $unit ??= 'NULL';
+        if ($price !== null && !$demo) {
+            $price = "CAST({$price} AS DECIMAL(19, 4))";
+        }
+        $price = $price === null ? 'NULL' : "CAST({$price} AS {$cast})";
+
+        $select = "SELECT {$id} AS [id], {$code} AS [code], {$name} AS [name], {$category} AS [category], {$unit} AS [unit], {$price} AS [price], {$image1} AS [image1], {$image2} AS [image2]";
+        $order = $id === $code ? $id : "{$code}, {$id}";
+        $itemsQuery = $this->database->prepare("{$select} FROM {$table}{$where} ORDER BY {$order} {$pagination}");
+        $itemsQuery->execute($parameters);
+        $items = [];
+        /** @var array<string, scalar|null> $row */
+        foreach ($itemsQuery->fetchAll() as $row) {
+            $norm = static fn (string|int|float|bool|null $value): ?string => $value === null || trim((string) $value) === '' ? null : trim((string) $value);
+            $items[] = [
+                'id' => $norm($row['id'] ?? null),
+                'code' => $norm($row['code'] ?? null),
+                'name' => $norm($row['name'] ?? null),
+                'category' => $norm($row['category'] ?? null),
+                'unit' => $norm($row['unit'] ?? null),
+                'price' => $norm($row['price'] ?? null),
+                'image1' => $norm($row['image1'] ?? null),
+                'image2' => $norm($row['image2'] ?? null),
+            ];
+        }
+
+        return ['items' => $items, 'page' => $page, 'pageSize' => $size, 'total' => $total, 'totalPages' => $pages];
+    }
+
+    /**
+     * @return array{id: string, code: string, name: string|null, category: string|null, unit: string|null, price: string|null, note: string|null, shortNote: string|null, image1: string|null, image2: string|null}|null
+     */
+    public function publicItem(string $idValue): ?array
+    {
+        $demo = $this->config->demo();
+        $table = $demo ? '[products]' : $this->configuredTable();
+        $id = $this->column('ID', 'id', true);
+        $code = $this->column('CODE', 'code', true);
+        $name = $this->column('NAME', 'name', true);
+        $category = $this->column('CATEGORY', 'category') ?? 'NULL';
+        $unit = $this->column('UNIT', 'unit') ?? 'NULL';
+        $price = $this->column('PRICE', 'price');
+        $cast = $demo ? 'TEXT' : 'NVARCHAR(4000)';
+        if ($price !== null && !$demo) {
+            $price = "CAST({$price} AS DECIMAL(19, 4))";
+        }
+        $price = $price === null ? 'NULL' : "CAST({$price} AS {$cast})";
+        $note = $demo ? '[note]' : 'CAST([Trade_Note] AS NVARCHAR(MAX))';
+        $shortNote = $demo ? '[short_note]' : 'CAST([Trade_Note_Sort] AS NVARCHAR(MAX))';
+        $image1 = $demo ? '[image1]' : '[Trade_Image1]';
+        $image2 = $demo ? '[image2]' : '[Trade_Image2]';
+        $query = $this->database->prepare(
+            "SELECT {$id} AS [id], {$code} AS [code], {$name} AS [name], {$category} AS [category], {$unit} AS [unit], {$price} AS [price], {$note} AS [note], {$shortNote} AS [shortNote], {$image1} AS [image1], {$image2} AS [image2]
+            FROM {$table} WHERE {$id} = ?"
+        );
+        $query->execute([$idValue]);
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+        $norm = static fn (mixed $value): ?string => !is_scalar($value) || trim((string) $value) === '' ? null : trim((string) $value);
+
+        return [
+            'id' => trim((string) $row['id']),
+            'code' => trim((string) $row['code']),
+            'name' => $norm($row['name'] ?? null),
+            'category' => $norm($row['category'] ?? null),
+            'unit' => $norm($row['unit'] ?? null),
+            'price' => $norm($row['price'] ?? null),
+            'note' => isset($row['note']) && is_string($row['note']) && $row['note'] !== '' ? $row['note'] : null,
+            'shortNote' => isset($row['shortNote']) && is_string($row['shortNote']) && $row['shortNote'] !== '' ? $row['shortNote'] : null,
+            'image1' => $norm($row['image1'] ?? null),
+            'image2' => $norm($row['image2'] ?? null),
+        ];
+    }
+
     public static function escapeLike(string $value): string
     {
         return strtr($value, ['!' => '!!', '%' => '!%', '_' => '!_', '[' => '![']);

@@ -1,0 +1,35 @@
+/* Loading, inline errors, dialogs and toasts. */
+.loading-screen { min-height: 100svh; display: grid; place-content: center; }
+.loading-spinner { width: 2.75rem; height: 2.75rem; border: 4px solid var(--color-hairline); border-top-color: var(--action-text); border-radius: 50%; animation: loading-spin .75s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
+.fallback-screen { position: fixed; inset: 0; background: var(--surface); }
+.inline-error { background: var(--danger-bg); color: var(--text-danger); border-radius: var(--ui-radius); padding: .75rem; font-size: .875rem; }
+
+.flat-dialog { box-shadow: none !important; color: var(--color-ink); font-family: var(--font-sans); }
+.flat-dialog .swal2-title { font-weight: 800; }
+.flat-dialog .swal2-html-container { text-align: left; margin-inline: 1.5rem; }
+.flat-dialog .swal2-actions { gap: .75rem; }
+.flat-dialog .swal2-actions button:focus-visible { outline: 2px solid var(--action-text); outline-offset: 3px; box-shadow: none; }
+.flat-dialog .dialog-button { background: var(--color-action); box-shadow: none !important; }
+.product-image-section .inline-error { margin-top: .75rem; }
+.price-editor .inline-error { margin-top: .75rem; }
+.image-toast { position: fixed; z-index: 50; left: 1.25rem; bottom: 1.25rem; display: flex; align-items: center; gap: .75rem; width: max-content; max-width: calc(100% - 2.5rem); padding: .75rem; border: 1px solid var(--line-success); background: var(--success-bg); color: var(--text-success); font-weight: 700; animation: toast-enter 200ms ease-out; transition: opacity 180ms ease, transform 180ms ease; }
+.image-toast.is-error { border-color: var(--line-danger); background: var(--danger-bg); color: var(--text-danger); }
+.image-toast.is-leaving { opacity: 0; transform: translateY(.5rem); pointer-events: none; }
+.toast-icon { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: var(--success-bg-strong); }
+.is-error .toast-icon { background: var(--danger-bg-strong); }
+.toast-icon svg { width: 1.25rem; height: 1.25rem; }
+.toast-message { min-width: 0; overflow-wrap: anywhere; }
+.toast-close { display: grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; margin-left: auto; border-radius: .75rem; color: inherit; }
+.toast-close:hover { background: var(--hover-shade); }
+.toast-close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.toast-close svg { width: 1rem; height: 1rem; }
+@keyframes toast-enter { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: translateY(0); } }
+.flat-dialog.swal2-popup { background: var(--surface); color: var(--color-ink); }
+.flat-dialog .swal2-title { color: var(--color-ink); }
+.flat-dialog .swal2-html-container { color: var(--text-body); }
+.flat-dialog { border: 1px solid var(--color-border); border-radius: var(--container-radius); }
+.flat-dialog .swal2-title { font-size: 1.125rem; }
+.flat-dialog .swal2-html-container { font-size: .875rem; }
+.image-toast { border-radius: var(--container-radius); font-size: .875rem; }

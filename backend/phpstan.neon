@@ -3,5 +3,5 @@ parameters:
     paths:
         - src
         - bin
-        - ../public/api.php
+        - ../public/api/index.php
     tmpDir: ../var/phpstan

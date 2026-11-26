@@ -9,11 +9,18 @@ use Sptc\MasterData\Core\Config;
 final readonly class WebsiteImageUrl
 {
     public const PUBLIC_QUERY_PARAM = 'website-image';
+    /** Collections whose Image_Url holds only the uploaded file name, as in Web_Promotion_Level. */
+    private const FILENAME_COLLECTIONS = ['promotion-level'];
 
     public function __construct(
         private Config $config,
         private ProductImage $images,
     ) {
+    }
+
+    public static function storesFilename(string $collection): bool
+    {
+        return in_array($collection, self::FILENAME_COLLECTIONS, true);
     }
 
     public function publicOrigin(): ?string
@@ -147,6 +154,9 @@ final readonly class WebsiteImageUrl
             return [];
         }
         $candidates = ['website-images/' . $collection . '/' . $filename];
+        if (self::storesFilename($collection)) {
+            $candidates[] = $filename;
+        }
         $canonical = $this->managedPublicUrl($collection, $filename);
         if ($canonical !== null) {
             $candidates[] = $canonical;
@@ -161,6 +171,12 @@ final readonly class WebsiteImageUrl
 
     public function parseManagedFilename(string $collection, string $imageUrl): ?string
     {
+        if (self::storesFilename($collection) && !$this->isHttpUrl($imageUrl)) {
+            return $imageUrl !== '' && !str_contains($imageUrl, '/') && $this->images->filenameMediaType($imageUrl) !== null
+                ? $imageUrl
+                : null;
+        }
+
         $legacyPrefix = 'website-images/' . $collection . '/';
         if (str_starts_with($imageUrl, $legacyPrefix)) {
             $filename = substr($imageUrl, strlen($legacyPrefix));
@@ -277,7 +293,9 @@ final readonly class WebsiteImageUrl
                 'sourceType' => 'upload',
                 'managedFilename' => $managedFilename,
                 'previewUrl' => null,
-                'imageUrl' => $isLegacyManaged ? null : $stored,
+                'imageUrl' => self::storesFilename($collection)
+                    ? $this->managedPublicUrl($collection, $managedFilename)
+                    : ($isLegacyManaged ? null : $stored),
             ];
         }
 
